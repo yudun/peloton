@@ -1,5 +1,9 @@
 #==============================================================================#
 # This file specifies intentionally untracked files that git should ignore.
+# See: http://www.kernel.org/pub/software/scm/git/docs/gitignore.html
+#
+# This file is intentionally different from the output of `git svn show-ignore`,
+# as most of those are useless.
 #==============================================================================#
 
 #==============================================================================#
@@ -30,11 +34,9 @@
 /GSYMS
 /GTAGS
 .gitusers
-autom4te.cache
 cscope.files
 cscope.out
 autoconf/aclocal.m4
-autoconf/autom4te.cache
 /compile_commands.json
 
 #==============================================================================#
@@ -76,7 +78,6 @@ build/
 *.o
 *.lo
 *.la
-*~
 *.pdf
 *.swp
 a.out
@@ -91,7 +92,6 @@ a.out
 # Backup artifacts
 #==============================================================================#
 ~*
-*~
 tmp/
  
 #==============================================================================#
@@ -127,6 +127,7 @@ doc/
 #==============================================================================#
 .idea
 *.iml
+CMakeLists.txt
 
 #==============================================================================#
 # Code Coverage files
@@ -143,72 +144,13 @@ scripts/PelotonTest/out
 scripts/PelotonTest/lib
 
 #==============================================================================#
-# Protobuf
-#==============================================================================#
-*.pb-c.c
-*.pb-c.h
-*.pb.cc
-*.pb.h
-*.pb.go
-
-#==============================================================================#
 # Third party
 #==============================================================================#
-third_party/nanomsg/
-third_party/nvml/
-third_party/logcabin/
+third_party/nanomsg
 
 #==============================================================================#
-# Eclipse
+# local helper utils
 #==============================================================================#
-
-.metadata
-bin/
-tmp/
-*.tmp
-*.bak
-*.swp
-*~.nib
-local.properties
-.settings/
-.loadpath
-.recommenders
-
-# Eclipse Core
-.project
-
-# External tool builders
-.externalToolBuilders/
-
-# Locally stored "Eclipse launch configurations"
-*.launch
-
-# PyDev specific (Python IDE for Eclipse)
-*.pydevproject
-
-# CDT-specific (C/C++ Development Tooling)
-.cproject
-
-# JDT-specific (Eclipse Java Development Tools)
-.classpath
-
-# Java annotation processor (APT)
-.factorypath
-
-# PDT-specific (PHP Development Tools)
-.buildpath
-
-# sbteclipse plugin
-.target
-
-# Tern plugin
-.tern-project
-
-# TeXlipse plugin
-.texlipse
-
-# STS (Spring Tool Suite)
-.springBeans
-
-# Code Recommenders
-.recommenders/
+/sync.sh
+handin.tar
+handin
