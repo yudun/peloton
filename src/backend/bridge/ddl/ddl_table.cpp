@@ -329,7 +329,7 @@ bool DDLTable::AddConstraint(Oid relation_oid, Constraint *constraint) {
 
 /**
  * @brief Set Reference Tables
- * @param reference table namees  reference table names
+ * @param reference table names
  * @param relation_oid relation oid
  * @return true if we set the reference tables, false otherwise
  */
