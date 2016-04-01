@@ -1,7 +1,3 @@
-//
-// Created by yudun on 16/3/18.
-//
-
 //===----------------------------------------------------------------------===//
 //
 //                         PelotonDB
@@ -14,9 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <cstdio>
-
+#include "gtest/gtest.h"
 #include "harness.h"
+
 
 //#include "backend/catalog/catalog.h"
 
@@ -29,6 +25,9 @@ namespace test {
 
 class ConstraintsTests : public PelotonTest {};
 
+TEST_F(ConstraintsTests, BasicTest) {
+  EXPECT_EQ(1, 1);
+}
 
 }  // End test namespace
 }  // End peloton namespace
