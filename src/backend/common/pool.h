@@ -1,12 +1,12 @@
 //===----------------------------------------------------------------------===//
 //
-//                         PelotonDB
+//                         Peloton
 //
 // pool.h
 //
 // Identification: src/backend/common/pool.h
 //
-// Copyright (c) 2015, Carnegie Mellon University Database Group
+// Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
@@ -25,7 +25,7 @@
 
 namespace peloton {
 
-static const size_t TEMP_POOL_CHUNK_SIZE = 1024 * 1024;  // 1 MB
+static const size_t TEMP_POOL_CHUNK_SIZE = 512;  // 512 B
 
 //===--------------------------------------------------------------------===//
 // Chunk of memory allocated on the heap
