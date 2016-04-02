@@ -47,6 +47,7 @@ namespace test {
 catalog::Column ConstraintsTestsUtil::GetColumnInfo(int index) {
   const bool is_inlined = true;
   std::string not_null_constraint_name = "not_null";
+  std::string unique_constraint_name = "unique";
   catalog::Column dummy_column;
 
   switch (index) {
@@ -88,6 +89,8 @@ catalog::Column ConstraintsTestsUtil::GetColumnInfo(int index) {
 
       column.AddConstraint(catalog::Constraint(CONSTRAINT_TYPE_NOTNULL,
                                                not_null_constraint_name));
+      column.AddConstraint(catalog::Constraint(CONSTRAINT_TYPE_UNIQUE,
+                                               unique_constraint_name));
       return column;
     } break;
 
@@ -340,6 +343,19 @@ storage::DataTable *ConstraintsTestsUtil::CreateTable(
     index::Index *sec_index = index::IndexFactory::GetInstance(index_metadata);
 
     table->AddIndex(sec_index);
+
+    // UNIQUE INDEX
+    key_attrs = {3};
+    key_schema = catalog::Schema::CopySchema(tuple_schema, key_attrs);
+    key_schema->SetIndexedColumns(key_attrs);
+
+    unique = false;
+    index_metadata = new index::IndexMetadata(
+        "unique_btree_index", 125, INDEX_TYPE_BTREE,
+        INDEX_CONSTRAINT_TYPE_UNIQUE, tuple_schema, key_schema, unique);
+    index::Index *unique_index = index::IndexFactory::GetInstance(index_metadata);
+
+    table->AddIndex(unique_index);
   }
 
   return table;
