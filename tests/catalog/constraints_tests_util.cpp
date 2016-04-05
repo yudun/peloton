@@ -33,6 +33,14 @@
 #include "backend/storage/data_table.h"
 #include "backend/storage/table_factory.h"
 #include "backend/index/index_factory.h"
+#include "backend/planner/delete_plan.h"
+#include "backend/planner/insert_plan.h"
+#include "backend/executor/executor_context.h"
+#include "backend/executor/delete_executor.h"
+#include "backend/executor/insert_executor.h"
+#include "backend/executor/seq_scan_executor.h"
+#include "backend/executor/update_executor.h"
+#include "backend/expression/expression_util.h"
 
 #include "executor/mock_executor.h"
 
@@ -169,50 +177,40 @@ void ConstraintsTestsUtil::PopulateTable(__attribute__((unused))
   // Ensure that the tile group is as expected.
   assert(schema->GetColumnCount() == 4);
 
-  // Insert tuples into tile_group.
-  const bool allocate = true;
-  auto testing_pool = TestingHarness::GetInstance().GetTestingPool();
-
   for (int rowid = 0; rowid < num_rows; rowid++) {
     int populate_value = rowid;
     if (mutate) populate_value *= 3;
 
-    storage::Tuple tuple(schema, allocate);
+    Value col1, col2, col3, col4;
 
     if (group_by) {
       // First column has only two distinct values
-      tuple.SetValue(0, ValueFactory::GetIntegerValue(PopulatedValue(
-                         int(populate_value / (num_rows / 2)), 0)),
-                     testing_pool);
-
+      col1 =  ValueFactory::GetIntegerValue(PopulatedValue(
+                         int(populate_value / (num_rows / 2)), 0));
     } else {
       // First column is unique in this case
-      tuple.SetValue(
-          0, ValueFactory::GetIntegerValue(PopulatedValue(populate_value, 0)),
-          testing_pool);
+      col1 = ValueFactory::GetIntegerValue(PopulatedValue(populate_value, 0));
     }
 
     // In case of random, make sure this column has duplicated values
-    tuple.SetValue(
-        1, ValueFactory::GetIntegerValue(PopulatedValue(
-            random ? std::rand() % (num_rows / 3) : populate_value, 1)),
-        testing_pool);
+    col2 = ValueFactory::GetIntegerValue(PopulatedValue(
+            random ? std::rand() % (num_rows / 3) : populate_value, 1));
 
-    tuple.SetValue(2, ValueFactory::GetDoubleValue(PopulatedValue(
-                       random ? std::rand() : populate_value, 2)),
-                   testing_pool);
+    col3 = ValueFactory::GetDoubleValue(PopulatedValue(
+                       random ? std::rand() : populate_value, 2));
 
     // In case of random, make sure this column has duplicated values
-    Value string_value =
-        ValueFactory::GetStringValue(std::to_string(PopulatedValue(
+    col4 = ValueFactory::GetStringValue(std::to_string(PopulatedValue(
             random ? std::rand() % (num_rows / 3) : populate_value, 3)));
-    tuple.SetValue(3, string_value, testing_pool);
 
-    ItemPointer tuple_slot_id = table->InsertTuple(&tuple);
-    EXPECT_TRUE(tuple_slot_id.block != INVALID_OID);
-    EXPECT_TRUE(tuple_slot_id.offset != INVALID_OID);
-    auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
-    txn_manager.PerformInsert(tuple_slot_id.block, tuple_slot_id.offset);
+    ConstraintsTestsUtil::ExecuteInsert(transaction, table,
+                                        col1, col2, col3, col4);
+//
+//    ItemPointer tuple_slot_id = table->InsertTuple(&tuple);
+//    EXPECT_TRUE(tuple_slot_id.block != INVALID_OID);
+//    EXPECT_TRUE(tuple_slot_id.offset != INVALID_OID);
+//    auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
+//    txn_manager.PerformInsert(tuple_slot_id.block, tuple_slot_id.offset);
   }
 }
 
@@ -295,6 +293,48 @@ executor::LogicalTile *ConstraintsTestsUtil::ExecuteTile(
   return result_logical_tile.release();
 }
 
+planner::ProjectInfo* ConstraintsTestsUtil::MakeProjectInfoFromTuple
+    (const storage::Tuple *tuple) {
+  planner::ProjectInfo::TargetList target_list;
+  planner::ProjectInfo::DirectMapList direct_map_list;
+
+  for (oid_t col_id = START_OID; col_id < tuple->GetColumnCount(); col_id++) {
+    auto value = tuple->GetValue(col_id);
+    auto expression = expression::ExpressionUtil::ConstantValueFactory(value);
+    target_list.emplace_back(col_id, expression);
+  }
+
+  return new planner::ProjectInfo(std::move(target_list),
+                                  std::move(direct_map_list));
+}
+
+bool ConstraintsTestsUtil::ExecuteInsert(concurrency::Transaction *transaction,
+                                         storage::DataTable *table,
+                                         const Value & col1,
+                                         const Value & col2,
+                                         const Value & col3,
+                                         const Value & col4) {
+  std::unique_ptr<executor::ExecutorContext> context(
+      new executor::ExecutorContext(transaction));
+
+  // Make tuple
+  std::unique_ptr<storage::Tuple> tuple(
+      new storage::Tuple(table->GetSchema(), true));
+
+  auto testing_pool = TestingHarness::GetInstance().GetTestingPool();
+  tuple->SetValue(0, col1, testing_pool);
+  tuple->SetValue(1, col2, testing_pool);
+  tuple->SetValue(2, col3, testing_pool);
+  tuple->SetValue(3, col4, testing_pool);
+
+  auto project_info = ConstraintsTestsUtil::MakeProjectInfoFromTuple(tuple.get());
+
+  // Insert
+  planner::InsertPlan node(table, project_info);
+  executor::InsertExecutor executor(&node, context.get());
+  return executor.Execute();
+}
+
 storage::DataTable *ConstraintsTestsUtil::CreateTable(
     int tuples_per_tilegroup_count, bool indexes) {
   catalog::Schema *table_schema = new catalog::Schema(
@@ -344,7 +384,7 @@ storage::DataTable *ConstraintsTestsUtil::CreateTable(
 
     table->AddIndex(sec_index);
 
-    // UNIQUE INDEX
+    // SECONDARY INDEX - UNIQUE INDEX
     key_attrs = {3};
     key_schema = catalog::Schema::CopySchema(tuple_schema, key_attrs);
     key_schema->SetIndexedColumns(key_attrs);

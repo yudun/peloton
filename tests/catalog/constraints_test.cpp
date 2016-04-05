@@ -23,6 +23,7 @@
 #include "backend/storage/table_factory.h"
 #include "backend/index/index_factory.h"
 
+#include "concurrency/transaction_tests_util.h"
 #include "catalog/constraints_tests_util.h"
 
 
@@ -45,37 +46,26 @@ TEST_F(ConstraintsTests, NOTNULLTest) {
   //  .....
   //  140           141   142     "143"
 
+//  storage::DataTable * data_table = ConstraintsTestsUtil::CreateAndPopulateTable();
   std::unique_ptr<storage::DataTable> data_table(
       ConstraintsTestsUtil::CreateAndPopulateTable());
 
   auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
 
   // begin this transaction
-  txn_manager.BeginTransaction();
+  auto txn = txn_manager.BeginTransaction();
 
-  const catalog::Schema *schema = data_table->GetSchema();
-
-
-  // Test1: insert a tuple with column 1 = null
-  storage::Tuple tuple1(schema, true);
-  auto testing_pool = TestingHarness::GetInstance().GetTestingPool();
-
-  tuple1.SetValue(0, ValueFactory::GetNullValue(),
-                  testing_pool);
-  tuple1.SetValue(
-      1, ValueFactory::GetIntegerValue(ConstraintsTestsUtil::PopulatedValue(15, 1)),
-      testing_pool);
-  tuple1.SetValue(
-      2, ValueFactory::GetIntegerValue(ConstraintsTestsUtil::PopulatedValue(15, 2)),
-      testing_pool);
-  Value string_value =
-      ValueFactory::GetStringValue(std::to_string(ConstraintsTestsUtil::PopulatedValue(
-          15, 3)));
-  tuple1.SetValue(3, string_value, testing_pool);
 
   bool hasException = false;
   try {
-    data_table->InsertTuple(&tuple1);
+    // Test1: insert a tuple with column 1 = null
+    ConstraintsTestsUtil::ExecuteInsert(txn, data_table.get(),
+      ValueFactory::GetNullValue(),
+      ValueFactory::GetIntegerValue(ConstraintsTestsUtil::PopulatedValue(15, 1)),
+      ValueFactory::GetIntegerValue(ConstraintsTestsUtil::PopulatedValue(15, 2)),
+      ValueFactory::GetStringValue(std::to_string(ConstraintsTestsUtil::PopulatedValue(
+                                            15, 3))) );
+
   } catch (ConstraintException e){
     hasException = true;
   }
@@ -83,21 +73,14 @@ TEST_F(ConstraintsTests, NOTNULLTest) {
 
 
   // Test2: insert a legal tuple
-  storage::Tuple tuple2(schema, true);
-
-  tuple2.SetValue(0, ValueFactory::GetIntegerValue(ConstraintsTestsUtil::PopulatedValue(15, 0)),
-                  testing_pool);
-  tuple2.SetValue(
-      1, ValueFactory::GetIntegerValue(ConstraintsTestsUtil::PopulatedValue(15, 1)),
-      testing_pool);
-  tuple2.SetValue(
-      2, ValueFactory::GetIntegerValue(ConstraintsTestsUtil::PopulatedValue(15, 2)),
-      testing_pool);
-  tuple2.SetValue(3, string_value, testing_pool);
-
   hasException = false;
   try {
-    data_table->InsertTuple(&tuple2);
+    ConstraintsTestsUtil::ExecuteInsert(txn, data_table.get(),
+      ValueFactory::GetIntegerValue(ConstraintsTestsUtil::PopulatedValue(15, 0)),
+      ValueFactory::GetIntegerValue(ConstraintsTestsUtil::PopulatedValue(15, 1)),
+      ValueFactory::GetIntegerValue(ConstraintsTestsUtil::PopulatedValue(15, 2)),
+      ValueFactory::GetStringValue(std::to_string(ConstraintsTestsUtil::PopulatedValue(
+          15, 3))) );
   } catch (ConstraintException e){
     hasException = true;
   }
@@ -108,7 +91,7 @@ TEST_F(ConstraintsTests, NOTNULLTest) {
 
 }
 
-TEST_F(ConstraintsTests, PrimaryKeyTest) {
+TEST_F(ConstraintsTests, SingleThreadedUniqueKeyTest) {
   // First, generate the table with index
   // this table has 15 rows:
   //  int(primary)  int   double  var(22)
@@ -124,37 +107,28 @@ TEST_F(ConstraintsTests, PrimaryKeyTest) {
   auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
 
   // begin this transaction
-  txn_manager.BeginTransaction();
+  auto txn = txn_manager.BeginTransaction();
 
-  const catalog::Schema *schema = data_table->GetSchema();
+//  const catalog::Schema *schema = data_table->GetSchema();
 
 
   // Test1: insert a tuple with column 1 = 0, a illegal primary key
-  storage::Tuple tuple1(schema, true);
-  auto testing_pool = TestingHarness::GetInstance().GetTestingPool();
-
-  tuple1.SetValue(0, ValueFactory::GetIntegerValue(ConstraintsTestsUtil::PopulatedValue(0, 0)),
-                  testing_pool);
-  tuple1.SetValue(
-      1, ValueFactory::GetIntegerValue(ConstraintsTestsUtil::PopulatedValue(15, 1)),
-      testing_pool);
-  tuple1.SetValue(
-      2, ValueFactory::GetIntegerValue(ConstraintsTestsUtil::PopulatedValue(15, 2)),
-      testing_pool);
-  Value string_value =
+  bool hasException = false;
+  try {
+    ConstraintsTestsUtil::ExecuteInsert(txn, data_table.get(),
+      ValueFactory::GetIntegerValue(ConstraintsTestsUtil::PopulatedValue(0, 0)),
+      ValueFactory::GetIntegerValue(ConstraintsTestsUtil::PopulatedValue(15, 1)),
+      ValueFactory::GetIntegerValue(ConstraintsTestsUtil::PopulatedValue(15, 2)),
       ValueFactory::GetStringValue(std::to_string(ConstraintsTestsUtil::PopulatedValue(
-          15, 3)));
-  tuple1.SetValue(3, string_value, testing_pool);
+          15, 3))) );
 
-//  bool hasException = false;
-//  try {
-//    data_table->InsertTuple(&tuple1);
-//  } catch (ConstraintException e){
-//    hasException = true;
-//  }
-//  EXPECT_TRUE(hasException);
+  } catch (ConstraintException e){
+    hasException = true;
+  }
+  EXPECT_TRUE(hasException);
 
-
+  // commit this transaction
+  txn_manager.CommitTransaction();
 }
 
 }  // End test namespace

@@ -46,6 +46,11 @@ class DataTable;
 class Tuple;
 }
 
+namespace planner {
+class ProjectInfo;
+}
+
+
 #define TESTS_TUPLES_PER_TILEGROUP 5
 #define DEFAULT_TILEGROUP_COUNT 3
 
@@ -64,6 +69,16 @@ class ConstraintsTestsUtil {
   static storage::DataTable *CreateTable(
       int tuples_per_tilegroup_count = TESTS_TUPLES_PER_TILEGROUP,
       bool indexes = true);
+
+  static planner::ProjectInfo* MakeProjectInfoFromTuple (const storage::Tuple *tuple);
+
+  /** @brief Insert a tupl with 4 columns' value specified */
+  static bool ExecuteInsert(concurrency::Transaction *transaction,
+                                           storage::DataTable *table,
+                                           const Value & col1,
+                                           const Value & col2,
+                                           const Value & col3,
+                                           const Value & col4);
 
   /** @brief Creates a basic table with allocated and populated tuples */
   static storage::DataTable *CreateAndPopulateTable();

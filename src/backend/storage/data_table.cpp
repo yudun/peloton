@@ -291,6 +291,8 @@ bool DataTable::InsertInIndexes(const storage::Tuple *tuple,
         // if in this index there has been a visible or uncommitted
         // <key, location> pair, this constraint is violated
         if (index->ConditionalInsertEntry(key.get(), location, fn) == false) {
+          throw ConstraintException(index->GetIndexType() + " constraint violated : " +
+              std::string(tuple->GetInfo()));
           return false;
         }
 
@@ -351,6 +353,8 @@ bool DataTable::InsertInSecondaryIndexes(const storage::Tuple *tuple,
         // if in this index there has been a visible or uncommitted
         // <key, location> pair, this constraint is violated
         if (index->ConditionalInsertEntry(key.get(), location, fn) == false) {
+          throw ConstraintException(index->GetIndexType() + " constraint violated : " +
+              std::string(tuple->GetInfo()));
           return false;
         }
         // auto locations = index->ScanKey(key.get());
