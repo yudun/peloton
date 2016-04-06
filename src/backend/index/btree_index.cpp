@@ -114,7 +114,7 @@ bool BTreeIndex<KeyType, ValueType, KeyComparator, KeyEqualityChecker>
       }
     }
 
-    LOG_INFO("k,v pair successfully inserted");
+//    LOG_INFO("k,v pair successfully inserted");
     // Insert the key, val pair
     container.insert(std::pair<KeyType, ValueType>(index_key, location));
 

@@ -23,8 +23,9 @@
 #include "backend/storage/table_factory.h"
 #include "backend/index/index_factory.h"
 
-#include "concurrency/transaction_tests_util.h"
 #include "catalog/constraints_tests_util.h"
+#include "concurrency/transaction_tests_util.h"
+
 
 
 namespace peloton {
@@ -55,10 +56,9 @@ TEST_F(ConstraintsTests, NOTNULLTest) {
   // begin this transaction
   auto txn = txn_manager.BeginTransaction();
 
-
+  // Test1: insert a tuple with column 1 = null
   bool hasException = false;
   try {
-    // Test1: insert a tuple with column 1 = null
     ConstraintsTestsUtil::ExecuteInsert(txn, data_table.get(),
       ValueFactory::GetNullValue(),
       ValueFactory::GetIntegerValue(ConstraintsTestsUtil::PopulatedValue(15, 1)),
@@ -91,47 +91,41 @@ TEST_F(ConstraintsTests, NOTNULLTest) {
 
 }
 
-TEST_F(ConstraintsTests, SingleThreadedUniqueKeyTest) {
+TEST_F(ConstraintsTests, CombinedPrimaryKeyTest) {
   // First, generate the table with index
-  // this table has 15 rows:
-  //  int(primary)  int   double  var(22) (unique)
-  //  0             1     2       "3"
-  //  10            11    12      "13"
-  //  20            21    22      "23"
+  // this table has 10 rows:
+  //  int(primary)  int(primary)
+  //  0             0
+  //  1             1
+  //  2             2
   //  .....
-  //  140           141   142     "143"
+  //  9             9
 
-  std::unique_ptr<storage::DataTable> data_table(
-      ConstraintsTestsUtil::CreateAndPopulateTable());
 
   auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
 
-  // begin this transaction
-  auto txn = txn_manager.BeginTransaction();
+  {
+    std::unique_ptr<storage::DataTable> data_table(
+        TransactionTestsUtil::CreateCombinedPrimaryKeyTable());
+    // Test1: insert 2 tuple with duplicated primary key
+    // txn1: insert (0, 1) -- success
+    // txn0 commit
+    // txn1: insert (1, 1) -- fail
+    // txn1 commit
+    TransactionScheduler scheduler(2, data_table.get(), &txn_manager);
+    scheduler.Txn(0).Insert(0, 1);
+    scheduler.Txn(0).Commit();
+    scheduler.Txn(1).Insert(1, 1);
+    scheduler.Txn(1).Commit();
 
-//  const catalog::Schema *schema = data_table->GetSchema();
+    scheduler.Run();
 
-
-  // Test1: insert a tuple with column 1 = 0, a illegal primary key
-  bool hasException = false;
-  try {
-    ConstraintsTestsUtil::ExecuteInsert(txn, data_table.get(),
-      ValueFactory::GetIntegerValue(ConstraintsTestsUtil::PopulatedValue(0, 0)),
-      ValueFactory::GetIntegerValue(ConstraintsTestsUtil::PopulatedValue(15, 1)),
-      ValueFactory::GetIntegerValue(ConstraintsTestsUtil::PopulatedValue(15, 2)),
-      ValueFactory::GetStringValue(std::to_string(ConstraintsTestsUtil::PopulatedValue(
-          15, 3))) );
-
-  } catch (ConstraintException e){
-    hasException = true;
+    EXPECT_TRUE(RESULT_SUCCESS == scheduler.schedules[0].txn_result);
+    EXPECT_TRUE(RESULT_ABORTED == scheduler.schedules[1].txn_result);
   }
-  EXPECT_TRUE(hasException);
-
-  // commit this transaction
-  txn_manager.CommitTransaction();
 }
 
-TEST_F(ConstraintsTests, MultiTransactionUniqueKeyTest) {
+TEST_F(ConstraintsTests, MultiTransactionUniqueConstraintsTest) {
   // First, generate the table with index
   // this table has 10 rows:
   //  int(primary)  int(unique)
@@ -141,16 +135,13 @@ TEST_F(ConstraintsTests, MultiTransactionUniqueKeyTest) {
   //  .....
   //  9             9
 
-  std::unique_ptr<storage::DataTable> data_table(
-      TransactionTestsUtil::CreatePrimaryKeyUniqueKeyTable());
 
   auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
 
-//  const catalog::Schema *schema = data_table->GetSchema();
-
-  // Test1: insert a tuple with column 1 = 0, a illegal primary key
-  bool hasException = false;
-  try {
+  {
+    std::unique_ptr<storage::DataTable> data_table(
+        TransactionTestsUtil::CreatePrimaryKeyUniqueKeyTable());
+    // Test1: insert 2 tuple with duplicated primary key
     TransactionScheduler scheduler(2, data_table.get(), &txn_manager);
     scheduler.Txn(0).Insert(10, 10);
     scheduler.Txn(1).Insert(10, 11);
@@ -159,10 +150,51 @@ TEST_F(ConstraintsTests, MultiTransactionUniqueKeyTest) {
 
     scheduler.Run();
 
-  } catch (ConstraintException e){
-    hasException = true;
+    EXPECT_TRUE((RESULT_SUCCESS == scheduler.schedules[0].txn_result
+        && RESULT_ABORTED == scheduler.schedules[1].txn_result) ||
+        (RESULT_SUCCESS == scheduler.schedules[1].txn_result
+            && RESULT_ABORTED == scheduler.schedules[0].txn_result));
   }
-  EXPECT_TRUE(hasException);
+
+  {
+    std::unique_ptr<storage::DataTable> data_table(
+        TransactionTestsUtil::CreatePrimaryKeyUniqueKeyTable());
+    // Test2: update a tuple to be a illegal primary key
+    // txn1: update (1, 1) -> (1,11) -- success
+    // txn0: update (0, 0) -> (0,1) -- fail
+    // txn1 commit
+    // txn0 commit
+    TransactionScheduler scheduler(2, data_table.get(), &txn_manager);
+    scheduler.Txn(1).Update(1, 11);
+    scheduler.Txn(0).Update(0, 1);
+    scheduler.Txn(1).Commit();
+    scheduler.Txn(0).Commit();
+
+    scheduler.Run();
+
+    EXPECT_TRUE(RESULT_ABORTED == scheduler.schedules[0].txn_result);
+    EXPECT_TRUE(RESULT_SUCCESS == scheduler.schedules[1].txn_result);
+  }
+
+  {
+    std::unique_ptr<storage::DataTable> data_table(
+        TransactionTestsUtil::CreatePrimaryKeyUniqueKeyTable());
+    // Test3: update a tuple to be a legal primary key
+    // txn1: update (1, 1) -> (1,11) -- success
+    // txn1 commit
+    // txn0: update (0, 0) -> (0,1) -- success
+    // txn0 commit
+    TransactionScheduler scheduler(2, data_table.get(), &txn_manager);
+    scheduler.Txn(1).Update(1, 11);
+    scheduler.Txn(1).Commit();
+    scheduler.Txn(0).Update(0, 1);
+    scheduler.Txn(0).Commit();
+
+    scheduler.Run();
+
+    EXPECT_TRUE(RESULT_SUCCESS == scheduler.schedules[0].txn_result);
+    EXPECT_TRUE(RESULT_SUCCESS == scheduler.schedules[1].txn_result);
+  }
 }
 
 }  // End test namespace

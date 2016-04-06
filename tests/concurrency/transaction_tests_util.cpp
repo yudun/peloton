@@ -32,6 +32,53 @@ class InsertPlan;
 class ProjectInfo;
 }
 namespace test {
+
+storage::DataTable *TransactionTestsUtil::CreateCombinedPrimaryKeyTable() {
+  auto id_column = catalog::Column(VALUE_TYPE_INTEGER,
+                                   GetTypeSize(VALUE_TYPE_INTEGER), "id", true);
+  id_column.AddConstraint(catalog::Constraint(CONSTRAINT_TYPE_NOTNULL,
+                                              "not_null"));
+  auto value_column = catalog::Column(
+      VALUE_TYPE_INTEGER, GetTypeSize(VALUE_TYPE_INTEGER), "value", true);
+  value_column.AddConstraint(catalog::Constraint(CONSTRAINT_TYPE_NOTNULL,
+                                              "not_null"));
+
+  // Create the table
+  catalog::Schema *table_schema =
+      new catalog::Schema({id_column, value_column});
+  auto table_name = "TEST_TABLE";
+  size_t tuples_per_tilegroup = 100;
+  auto table = storage::TableFactory::GetDataTable(
+      INVALID_OID, INVALID_OID, table_schema, table_name, tuples_per_tilegroup,
+      true, false);
+
+  // Create index on the (id, value) column
+  std::vector<oid_t> key_attrs = {0, 1};
+  auto tuple_schema = table->GetSchema();
+  bool unique = false;
+  auto key_schema = catalog::Schema::CopySchema(tuple_schema, key_attrs);
+  key_schema->SetIndexedColumns(key_attrs);
+
+  auto index_metadata = new index::IndexMetadata(
+      "primary_btree_index", 1234, INDEX_TYPE_BTREE,
+      INDEX_CONSTRAINT_TYPE_PRIMARY_KEY, tuple_schema, key_schema, unique);
+
+  index::Index *pkey_index = index::IndexFactory::GetInstance(index_metadata);
+
+  table->AddIndex(pkey_index);
+
+  // Insert tuple
+  auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
+  auto txn = txn_manager.BeginTransaction();
+  for (int i = 0; i < 10; i++) {
+    ExecuteInsert(txn, table, i, i);
+  }
+  txn_manager.CommitTransaction();
+
+  return table;
+}
+
+
 storage::DataTable *TransactionTestsUtil::CreatePrimaryKeyUniqueKeyTable() {
   auto id_column = catalog::Column(VALUE_TYPE_INTEGER,
                                    GetTypeSize(VALUE_TYPE_INTEGER), "id", true);

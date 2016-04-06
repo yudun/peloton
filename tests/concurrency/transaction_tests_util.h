@@ -119,9 +119,12 @@ class TransactionTestsUtil {
   // when created
   static storage::DataTable *CreateTable();
 
-  // Create the same table with primary key constrainst on id and
+  // Create the same table as CreateTable with primary key constrainst on id and
   // unique key constraints on value
   static storage::DataTable *CreatePrimaryKeyUniqueKeyTable();
+
+  // Create the same table with combined primary key constrainst on (id, value)
+  static storage::DataTable *CreateCombinedPrimaryKeyTable();
 
   static bool ExecuteInsert(concurrency::Transaction *txn,
                             storage::DataTable *table, int id, int value);

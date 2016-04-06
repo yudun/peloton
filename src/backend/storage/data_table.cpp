@@ -180,7 +180,7 @@ ItemPointer DataTable::InsertEmptyVersion(const storage::Tuple *tuple) {
 
 ItemPointer DataTable::InsertVersion(const storage::Tuple *tuple) {
   // First, do integrity checks and claim a slot
-  ItemPointer location = GetEmptyTupleSlot(tuple, true);
+  ItemPointer location = GetEmptyTupleSlot(tuple, false);
   if (location.block == INVALID_OID) {
     LOG_WARN("Failed to get tuple slot.");
     return INVALID_ITEMPOINTER;
@@ -258,8 +258,6 @@ bool DataTable::InsertInIndexes(const storage::Tuple *tuple,
         // if in this index there has been a visible or uncommitted
         // <key, location> pair, this constraint is violated
         if (index->ConditionalInsertEntry(key.get(), location, fn) == false) {
-          throw ConstraintException(index->GetIndexType() + " constraint violated : " +
-              std::string(tuple->GetInfo()));
           return false;
         }
 
@@ -308,8 +306,6 @@ bool DataTable::InsertInSecondaryIndexes(const storage::Tuple *tuple,
         // if in this index there has been a visible or uncommitted
         // <key, location> pair, this constraint is violated
         if (index->ConditionalInsertEntry(key.get(), location, fn) == false) {
-          throw ConstraintException(index->GetIndexType() + " constraint violated : " +
-              std::string(tuple->GetInfo()));
           return false;
         }
         // auto locations = index->ScanKey(key.get());
