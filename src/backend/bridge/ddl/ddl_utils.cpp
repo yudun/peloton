@@ -127,23 +127,37 @@ void DDLUtils::ParsingCreateStmt(
 
         switch (contype) {
           case CONSTRAINT_TYPE_UNIQUE:
+            LOG_INFO("CONSTRAINT_TYPE_UNIQUE");
+            continue;
           case CONSTRAINT_TYPE_FOREIGN:
+            LOG_INFO("CONSTRAINT_TYPE_FOREIGN");
             continue;
 
-          case CONSTRAINT_TYPE_NULL:
-          case CONSTRAINT_TYPE_NOTNULL:
+          case CONSTRAINT_TYPE_NULL:{
+            LOG_INFO("CONSTRAINT_TYPE_NULL");
+            catalog::Constraint constraint(contype, conname);
+            column_constraints.push_back(constraint);
+            break;}
+          case CONSTRAINT_TYPE_NOTNULL:{
+            LOG_INFO("CONSTRAINT_TYPE_NOTNULL");
+            catalog::Constraint constraint(contype, conname);
+            column_constraints.push_back(constraint);
+            break;}
           case CONSTRAINT_TYPE_PRIMARY: {
+            LOG_INFO("CONSTRAINT_TYPE_PRIMARY");
             catalog::Constraint constraint(contype, conname);
             column_constraints.push_back(constraint);
             break;
           }
           case CONSTRAINT_TYPE_CHECK: {
+            LOG_INFO("CONSTRAINT_TYPE_CHECK");
             catalog::Constraint constraint(contype, conname,
                                            ConstraintNode->raw_expr);
             column_constraints.push_back(constraint);
             break;
           }
           case CONSTRAINT_TYPE_DEFAULT: {
+            LOG_INFO("CONSTRAINT_TYPE_DEFAULT");
             catalog::Constraint constraint(contype, conname,
                                            coldef->cooked_default);
             column_constraints.push_back(constraint);
