@@ -205,6 +205,7 @@ void BridgeTest::CreateSampleUniqueIndex(std::string table_name,
                              INDEX_TYPE_BTREE, INDEX_CONSTRAINT_TYPE_UNIQUE,
                              true, key_column_names);
 
+    LOG_INFO("CreateSampleUniqueIndex");
   status = DDLIndex::CreateIndex(*index_info);
   if (status == false) throw CatalogException("Could not create index");
 }
