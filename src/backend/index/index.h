@@ -15,6 +15,7 @@
 #include <vector>
 #include <string>
 #include <functional>
+#include "backend/common/logger.h"
 
 #include "backend/common/printable.h"
 #include "backend/common/types.h"

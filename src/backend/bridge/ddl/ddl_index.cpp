@@ -53,6 +53,7 @@ bool DDLIndex::ExecIndexStmt(Node *parsetree,
 
   IndexInfo *index_info = DDLIndex::ConstructIndexInfoByParsingIndexStmt(Istmt);
 
+    LOG_INFO("the silly boy in tree node creating index");
   DDLIndex::CreateIndex(*index_info);
   return true;
 }
