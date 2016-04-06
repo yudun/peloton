@@ -118,6 +118,11 @@ class TransactionTestsUtil {
   // Further add a unique index on the id column. The table has one tuple (0, 0)
   // when created
   static storage::DataTable *CreateTable();
+
+  // Create the same table with primary key constrainst on id and
+  // unique key constraints on value
+  static storage::DataTable *CreatePrimaryKeyUniqueKeyTable();
+
   static bool ExecuteInsert(concurrency::Transaction *txn,
                             storage::DataTable *table, int id, int value);
   static bool ExecuteRead(concurrency::Transaction *txn,

@@ -94,7 +94,7 @@ TEST_F(ConstraintsTests, NOTNULLTest) {
 TEST_F(ConstraintsTests, SingleThreadedUniqueKeyTest) {
   // First, generate the table with index
   // this table has 15 rows:
-  //  int(primary)  int   double  var(22)
+  //  int(primary)  int   double  var(22) (unique)
   //  0             1     2       "3"
   //  10            11    12      "13"
   //  20            21    22      "23"
@@ -129,6 +129,40 @@ TEST_F(ConstraintsTests, SingleThreadedUniqueKeyTest) {
 
   // commit this transaction
   txn_manager.CommitTransaction();
+}
+
+TEST_F(ConstraintsTests, MultiTransactionUniqueKeyTest) {
+  // First, generate the table with index
+  // this table has 10 rows:
+  //  int(primary)  int(unique)
+  //  0             0
+  //  1             1
+  //  2             2
+  //  .....
+  //  9             9
+
+  std::unique_ptr<storage::DataTable> data_table(
+      TransactionTestsUtil::CreatePrimaryKeyUniqueKeyTable());
+
+  auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
+
+//  const catalog::Schema *schema = data_table->GetSchema();
+
+  // Test1: insert a tuple with column 1 = 0, a illegal primary key
+  bool hasException = false;
+  try {
+    TransactionScheduler scheduler(2, data_table.get(), &txn_manager);
+    scheduler.Txn(0).Insert(10, 10);
+    scheduler.Txn(1).Insert(10, 11);
+    scheduler.Txn(0).Commit();
+    scheduler.Txn(1).Commit();
+
+    scheduler.Run();
+
+  } catch (ConstraintException e){
+    hasException = true;
+  }
+  EXPECT_TRUE(hasException);
 }
 
 }  // End test namespace
