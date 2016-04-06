@@ -56,7 +56,9 @@ class IndexMetadata {
         index_type(index_type),
         tuple_schema(tuple_schema),
         key_schema(key_schema),
-        unique_keys(unique_keys) {}
+        unique_keys(unique_keys) {
+    LOG_INFO("This silly db wants to build index");
+  }
 
   ~IndexMetadata();
 
