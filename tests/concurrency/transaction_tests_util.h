@@ -117,8 +117,7 @@ class TransactionTestsUtil {
   // Create a simple table with two columns: the id column and the value column
   // Further add a unique index on the id column. The table has one tuple (0, 0)
   // when created
-<<<<<<< HEAD
-  static storage::DataTable *CreateTable();
+  static storage::DataTable *CreateTable(int num_key = 10);
 
   // Create the same table as CreateTable with primary key constrainst on id and
   // unique key constraints on value
@@ -127,9 +126,6 @@ class TransactionTestsUtil {
   // Create the same table with combined primary key constrainst on (id, value)
   static storage::DataTable *CreateCombinedPrimaryKeyTable();
 
-=======
-  static storage::DataTable *CreateTable(int num_key = 10);
->>>>>>> wyjupstream/mvcc
   static bool ExecuteInsert(concurrency::Transaction *txn,
                             storage::DataTable *table, int id, int value);
   static bool ExecuteRead(concurrency::Transaction *txn,
