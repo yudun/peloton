@@ -42,35 +42,35 @@ namespace bridge {
  */
 
 bool DDLTable::ExecCreateStmt(Node *parsetree,
-                              std::vector<Node *> &parsetree_stack) {
-  List *stmts = ((CreateStmt *)parsetree)->stmts;
+                     std::vector<Node *> &parsetree_stack) {
+        List *stmts = ((CreateStmt *)parsetree)->stmts;
 
-  /* ... and do it */
-  ListCell *l;
-  foreach (l, stmts) {
-    Node *stmt = (Node *)lfirst(l);
-    if (IsA(stmt, CreateStmt)) {
-      CreateStmt *Cstmt = (CreateStmt *)stmt;
-      List *schema = (List *)(Cstmt->tableElts);
+        /* ... and do it */
+        ListCell *l;
+        foreach (l, stmts) {
+          Node *stmt = (Node *)lfirst(l);
+          if (IsA(stmt, CreateStmt)) {
+            CreateStmt *Cstmt = (CreateStmt *)stmt;
+            List *schema = (List *)(Cstmt->tableElts);
 
-      // Relation name and oid
-      char *relation_name = Cstmt->relation->relname;
-      Oid relation_oid = ((CreateStmt *)parsetree)->relation_id;
+            // Relation name and oid
+            char *relation_name = Cstmt->relation->relname;
+            Oid relation_oid = ((CreateStmt *)parsetree)->relation_id;
 
-      assert(relation_oid);
+            assert(relation_oid);
 
-      std::vector<catalog::Column> column_infos;
+            std::vector<catalog::Column> column_infos;
 
-      //===--------------------------------------------------------------------===//
-      // CreateStmt --> ColumnInfo --> CreateTable
-      //===--------------------------------------------------------------------===//
-      if (schema != NULL) {
-        DDLUtils::ParsingCreateStmt(Cstmt, column_infos);
+            //===--------------------------------------------------------------------===//
+            // CreateStmt --> ColumnInfo --> CreateTable
+            //===--------------------------------------------------------------------===//
+            if (schema != NULL) {
+              DDLUtils::ParsingCreateStmt(Cstmt, column_infos);
 
-        DDLTable::CreateTable(relation_oid, relation_name, column_infos);
-      }
-    }
-  }
+              DDLTable::CreateTable(relation_oid, relation_name, column_infos);
+            }
+          }
+        }
 
   //===--------------------------------------------------------------------===//
   // Rerun query

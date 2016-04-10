@@ -139,7 +139,8 @@ class Schema : public Printable {
   // Get the nullability of the column at a given index.
   inline bool AllowNull(const oid_t column_id) const {
     for (auto constraint : columns[column_id].constraints) {
-      if (constraint.GetType() == CONSTRAINT_TYPE_NOTNULL) return false;
+      if (constraint.GetType() == CONSTRAINT_TYPE_NOTNULL
+          ||constraint.GetType() == CONSTRAINT_TYPE_PRIMARY) return false;
     }
     return true;
   }
