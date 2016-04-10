@@ -389,7 +389,7 @@ bool DataTable::CheckForeignKeyConstraints(const storage::Tuple *tuple) {
 
         // if this key doesn't exist in the refered column
         if (locations.size() == 0) {
-          throw Exception("Foreign key constrain violated !");
+          
           return false;
         }
 
