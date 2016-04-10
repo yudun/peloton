@@ -375,8 +375,9 @@ bool DataTable::CheckForeignKeyConstraints(const storage::Tuple *tuple) {
 
       // The foreign key constraints only refer to the primary key
       if (index->GetIndexType() == INDEX_CONSTRAINT_TYPE_PRIMARY_KEY) {
-        LOG_INFO("BEGIN checking referred table");
+        LOG_INFO("BEGIN CHECKING REFERED TABLE");
         auto key_attrs = foreign_key->GetFKColumnOffsets();
+        LOG_INFO("CHECK COLUMN OFFSET = %lu", key_attrs);
 
         std::unique_ptr<catalog::Schema> foreign_key_schema(catalog::Schema::CopySchema(schema, key_attrs));
         std::unique_ptr<storage::Tuple> key(new storage::Tuple(foreign_key_schema.get(), true));
@@ -388,6 +389,7 @@ bool DataTable::CheckForeignKeyConstraints(const storage::Tuple *tuple) {
 
         // if this key doesn't exist in the refered column
         if (locations.size() == 0) {
+          throw Exception("Foreign key constrain violated !");
           return false;
         }
 
