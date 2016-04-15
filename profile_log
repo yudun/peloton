@@ -1,0 +1,202 @@
+LOG:  database system was shut down at 2016-04-04 01:44:23 UTC
+LOG:  database system is ready to accept connections
+01:44:46,804 [../../src/backend/bridge/ddl/ddl_database.cpp:101:CreateDatabase] INFO  - Create database (12111)
+01:44:46,805 [../../src/backend/bridge/ddl/ddl.cpp:100:ProcessUtility] WARN  - unrecognized node type: 747
+01:51:28,200 [../../src/backend/bridge/ddl/ddl_table.cpp:195:CreateTable] INFO  - Created table(12113)products_check in database(12111) 
+01:51:35,921 [../../src/backend/bridge/ddl/ddl_table.cpp:195:CreateTable] INFO  - Created table(12122)products_notnull in database(12111) 
+01:51:45,035 [../../src/backend/bridge/ddl/ddl_table.cpp:195:CreateTable] INFO  - Created table(12128)products_unique in database(12111) 
+01:51:45,035 [../../src/backend/bridge/ddl/ddl_index.cpp:143:CreateIndex] INFO  - Created index(12134)  products_unique_product_no_key on products_unique.
+01:51:45,049 [../../src/backend/bridge/ddl/ddl_table.cpp:195:CreateTable] INFO  - Created table(12136)example_unique in database(12111) 
+01:51:45,049 [../../src/backend/bridge/ddl/ddl_index.cpp:143:CreateIndex] INFO  - Created index(12139)  example_unique_a__c_key on example_unique.
+01:51:45,056 [../../src/backend/bridge/ddl/ddl_table.cpp:195:CreateTable] INFO  - Created table(12141)products in database(12111) 
+01:51:45,056 [../../src/backend/bridge/ddl/ddl_index.cpp:143:CreateIndex] INFO  - Created index(12147)  products_pkey on products.
+01:51:45,064 [../../src/backend/bridge/ddl/ddl_table.cpp:195:CreateTable] INFO  - Created table(12149)orders in database(12111) 
+01:51:45,064 [../../src/backend/bridge/ddl/ddl_index.cpp:143:CreateIndex] INFO  - Created index(12152)  orders_pkey on orders.
+01:51:45,064 [../../src/backend/bridge/ddl/ddl_table.cpp:232:AlterTable] INFO  - Altered the table (12149)
+01:51:45,077 [../../src/backend/bridge/ddl/ddl_table.cpp:195:CreateTable] INFO  - Created table(12159)order_items in database(12111) 
+01:51:45,077 [../../src/backend/bridge/ddl/ddl_index.cpp:143:CreateIndex] INFO  - Created index(12162)  order_items_pkey on order_items.
+01:51:45,077 [../../src/backend/bridge/ddl/ddl_table.cpp:232:AlterTable] INFO  - Altered the table (12159)
+01:56:09,686 [../../src/backend/bridge/dml/mapper/dml_utils.cpp:197:PrepareModifyTableState] INFO  - CMD_INSERT
+01:56:09,686 [../../src/backend/bridge/dml/mapper/mapper_modify_table.cpp:39:TransformModifyTable] INFO  - CMD_INSERT
+01:56:09,686 [../../src/backend/bridge/dml/mapper/mapper_modify_table.cpp:84:TransformInsert] INFO  - Insert into: database oid 12111 table oid 12113: products_check
+01:56:09,686 [../../src/backend/bridge/dml/tuple/tuple_transformer.cpp:288:GetValue] INFO  - PG decimal = 100 
+01:56:09,686 [../../src/backend/bridge/dml/tuple/tuple_transformer.cpp:288:GetValue] INFO  - PG decimal = 99 
+01:56:09,686 [../../src/backend/bridge/dml/mapper/mapper_utils.cpp:42:BuildParams] INFO  - Built 0 params 
+01:56:09,687 [../../src/backend/concurrency/optimistic_txn_manager.cpp:259:CommitTransaction] INFO  - Committing peloton txn : 2 
+01:56:27,785 [../../src/backend/bridge/dml/mapper/mapper_seq_scan.cpp:44:TransformSeqScan] INFO  - SeqScan: database oid 12111 table oid 12113: products_check
+01:56:27,785 [../../src/backend/bridge/dml/mapper/mapper_utils.cpp:270:BuildPredicateFromQual] INFO  - Predicate:
+01:56:27,785 [../../src/backend/bridge/dml/mapper/mapper_utils.cpp:272:BuildPredicateFromQual] INFO  - NULL
+01:56:27,785 [../../src/backend/bridge/dml/mapper/mapper_utils.cpp:89:GetGenericInfoFromScanState] INFO  - project_info : Target List: < DEST_column_id , expression >
+DirectMap List: < NEW_col_id , <tuple_idx , OLD_col_id>  > 
+<0, <0, 0> >
+<1, <0, 1> >
+<2, <0, 2> >
+<3, <0, 3> >
+
+01:56:27,788 [../../src/backend/bridge/dml/mapper/mapper_utils.cpp:123:GetGenericInfoFromScanState] INFO  - Pure direct map projection.
+01:56:27,788 [../../src/backend/bridge/dml/mapper/mapper_utils.cpp:42:BuildParams] INFO  - Built 0 params 
+01:56:27,789 [../../src/backend/concurrency/optimistic_txn_manager.cpp:259:CommitTransaction] INFO  - Committing peloton txn : 3 
+01:56:43,916 [../../src/backend/bridge/dml/mapper/dml_utils.cpp:197:PrepareModifyTableState] INFO  - CMD_INSERT
+01:56:43,916 [../../src/backend/bridge/dml/mapper/mapper_modify_table.cpp:39:TransformModifyTable] INFO  - CMD_INSERT
+01:56:43,916 [../../src/backend/bridge/dml/mapper/mapper_modify_table.cpp:84:TransformInsert] INFO  - Insert into: database oid 12111 table oid 12113: products_check
+01:56:43,916 [../../src/backend/bridge/dml/tuple/tuple_transformer.cpp:288:GetValue] INFO  - PG decimal = 100 
+01:56:43,916 [../../src/backend/bridge/dml/tuple/tuple_transformer.cpp:288:GetValue] INFO  - PG decimal = 101 
+01:56:43,916 [../../src/backend/bridge/dml/mapper/mapper_utils.cpp:42:BuildParams] INFO  - Built 0 params 
+01:56:43,916 [../../src/backend/concurrency/optimistic_txn_manager.cpp:259:CommitTransaction] INFO  - Committing peloton txn : 4 
+01:56:50,956 [../../src/backend/bridge/dml/mapper/mapper_seq_scan.cpp:44:TransformSeqScan] INFO  - SeqScan: database oid 12111 table oid 12113: products_check
+01:56:50,956 [../../src/backend/bridge/dml/mapper/mapper_utils.cpp:270:BuildPredicateFromQual] INFO  - Predicate:
+01:56:50,956 [../../src/backend/bridge/dml/mapper/mapper_utils.cpp:272:BuildPredicateFromQual] INFO  - NULL
+01:56:50,956 [../../src/backend/bridge/dml/mapper/mapper_utils.cpp:89:GetGenericInfoFromScanState] INFO  - project_info : Target List: < DEST_column_id , expression >
+DirectMap List: < NEW_col_id , <tuple_idx , OLD_col_id>  > 
+<0, <0, 0> >
+<1, <0, 1> >
+<2, <0, 2> >
+<3, <0, 3> >
+
+01:56:50,956 [../../src/backend/bridge/dml/mapper/mapper_utils.cpp:123:GetGenericInfoFromScanState] INFO  - Pure direct map projection.
+01:56:50,956 [../../src/backend/bridge/dml/mapper/mapper_utils.cpp:42:BuildParams] INFO  - Built 0 params 
+01:56:50,957 [../../src/backend/concurrency/optimistic_txn_manager.cpp:259:CommitTransaction] INFO  - Committing peloton txn : 5 
+01:57:12,826 [../../src/backend/bridge/dml/mapper/dml_utils.cpp:197:PrepareModifyTableState] INFO  - CMD_INSERT
+01:57:12,826 [../../src/backend/bridge/dml/mapper/mapper_modify_table.cpp:39:TransformModifyTable] INFO  - CMD_INSERT
+01:57:12,826 [../../src/backend/bridge/dml/mapper/mapper_modify_table.cpp:84:TransformInsert] INFO  - Insert into: database oid 12111 table oid 12113: products_check
+01:57:12,826 [../../src/backend/bridge/dml/tuple/tuple_transformer.cpp:288:GetValue] INFO  - PG decimal = -100 
+01:57:12,827 [../../src/backend/bridge/dml/tuple/tuple_transformer.cpp:288:GetValue] INFO  - PG decimal = 101 
+01:57:12,827 [../../src/backend/bridge/dml/mapper/mapper_utils.cpp:42:BuildParams] INFO  - Built 0 params 
+01:57:12,827 [../../src/backend/concurrency/optimistic_txn_manager.cpp:259:CommitTransaction] INFO  - Committing peloton txn : 6 
+01:57:45,623 [../../src/backend/bridge/dml/mapper/dml_utils.cpp:197:PrepareModifyTableState] INFO  - CMD_INSERT
+01:57:45,623 [../../src/backend/bridge/dml/mapper/mapper_modify_table.cpp:39:TransformModifyTable] INFO  - CMD_INSERT
+01:57:45,623 [../../src/backend/bridge/dml/mapper/mapper_modify_table.cpp:84:TransformInsert] INFO  - Insert into: database oid 12111 table oid 12122: products_notnull
+01:57:45,623 [../../src/backend/bridge/dml/tuple/tuple_transformer.cpp:288:GetValue] INFO  - PG decimal = 1 
+01:57:45,623 [../../src/backend/bridge/dml/mapper/mapper_utils.cpp:42:BuildParams] INFO  - Built 0 params 
+Exception Type :: Constraint
+Message :: Not NULL constraint violated : (<NULL>)(<NULL>)(DECIMAL::1.000000000000)
+
+ERROR:  Peloton exception :: Not NULL constraint violated : (<NULL>)(<NULL>)(DECIMAL::1.000000000000)
+	
+STATEMENT:  INSERT INTO products_notnull VALUES (NULL, NULL, 1);
+WARNING:  GUC nest level = 1 at transaction start
+01:58:53,858 [../../src/backend/bridge/dml/mapper/dml_utils.cpp:197:PrepareModifyTableState] INFO  - CMD_INSERT
+01:58:53,858 [../../src/backend/bridge/dml/mapper/mapper_modify_table.cpp:39:TransformModifyTable] INFO  - CMD_INSERT
+01:58:53,858 [../../src/backend/bridge/dml/mapper/mapper_modify_table.cpp:84:TransformInsert] INFO  - Insert into: database oid 12111 table oid 12122: products_notnull
+01:58:53,858 [../../src/backend/bridge/dml/tuple/tuple_transformer.cpp:288:GetValue] INFO  - PG decimal = 1 
+01:58:53,858 [../../src/backend/bridge/dml/mapper/mapper_utils.cpp:42:BuildParams] INFO  - Built 0 params 
+01:58:58,533 [../../src/backend/bridge/dml/mapper/dml_utils.cpp:197:PrepareModifyTableState] INFO  - CMD_INSERT
+01:58:58,533 [../../src/backend/bridge/dml/mapper/mapper_modify_table.cpp:39:TransformModifyTable] INFO  - CMD_INSERT
+01:58:58,533 [../../src/backend/bridge/dml/mapper/mapper_modify_table.cpp:84:TransformInsert] INFO  - Insert into: database oid 12111 table oid 12122: products_notnull
+01:58:58,533 [../../src/backend/bridge/dml/tuple/tuple_transformer.cpp:288:GetValue] INFO  - PG decimal = 2 
+01:58:58,533 [../../src/backend/bridge/dml/mapper/mapper_utils.cpp:42:BuildParams] INFO  - Built 0 params 
+ERROR:  syntax error at or near "INTO" at character 39
+STATEMENT:  select * from products_unique 
+	INSERT INTO products_unique VALUES (1, 'lqi1', 1);
+WARNING:  GUC nest level = 1 at transaction start
+01:59:46,239 [../../src/backend/bridge/dml/mapper/dml_utils.cpp:197:PrepareModifyTableState] INFO  - CMD_INSERT
+01:59:46,240 [../../src/backend/bridge/dml/mapper/mapper_modify_table.cpp:39:TransformModifyTable] INFO  - CMD_INSERT
+01:59:46,240 [../../src/backend/bridge/dml/mapper/mapper_modify_table.cpp:84:TransformInsert] INFO  - Insert into: database oid 12111 table oid 12128: products_unique
+01:59:46,240 [../../src/backend/bridge/dml/tuple/tuple_transformer.cpp:288:GetValue] INFO  - PG decimal = 2 
+01:59:46,240 [../../src/backend/bridge/dml/mapper/mapper_utils.cpp:42:BuildParams] INFO  - Built 0 params 
+02:00:00,500 [../../src/backend/bridge/dml/mapper/mapper_seq_scan.cpp:44:TransformSeqScan] INFO  - SeqScan: database oid 12111 table oid 12128: products_unique
+02:00:00,500 [../../src/backend/bridge/dml/mapper/mapper_utils.cpp:270:BuildPredicateFromQual] INFO  - Predicate:
+02:00:00,500 [../../src/backend/bridge/dml/mapper/mapper_utils.cpp:272:BuildPredicateFromQual] INFO  - NULL
+02:00:00,500 [../../src/backend/bridge/dml/mapper/mapper_utils.cpp:89:GetGenericInfoFromScanState] INFO  - project_info : Target List: < DEST_column_id , expression >
+DirectMap List: < NEW_col_id , <tuple_idx , OLD_col_id>  > 
+<0, <0, 0> >
+<1, <0, 1> >
+<2, <0, 2> >
+
+02:00:00,500 [../../src/backend/bridge/dml/mapper/mapper_utils.cpp:123:GetGenericInfoFromScanState] INFO  - Pure direct map projection.
+02:00:00,500 [../../src/backend/bridge/dml/mapper/mapper_utils.cpp:42:BuildParams] INFO  - Built 0 params 
+02:00:53,275 [../../src/backend/bridge/dml/mapper/dml_utils.cpp:197:PrepareModifyTableState] INFO  - CMD_INSERT
+02:00:53,275 [../../src/backend/bridge/dml/mapper/mapper_modify_table.cpp:39:TransformModifyTable] INFO  - CMD_INSERT
+02:00:53,275 [../../src/backend/bridge/dml/mapper/mapper_modify_table.cpp:84:TransformInsert] INFO  - Insert into: database oid 12111 table oid 12128: products_unique
+02:00:53,275 [../../src/backend/bridge/dml/tuple/tuple_transformer.cpp:288:GetValue] INFO  - PG decimal = 1 
+02:00:53,275 [../../src/backend/bridge/dml/mapper/mapper_utils.cpp:42:BuildParams] INFO  - Built 0 params 
+02:00:55,210 [../../src/backend/bridge/dml/mapper/mapper_seq_scan.cpp:44:TransformSeqScan] INFO  - SeqScan: database oid 12111 table oid 12128: products_unique
+02:00:55,210 [../../src/backend/bridge/dml/mapper/mapper_utils.cpp:270:BuildPredicateFromQual] INFO  - Predicate:
+02:00:55,210 [../../src/backend/bridge/dml/mapper/mapper_utils.cpp:272:BuildPredicateFromQual] INFO  - NULL
+02:00:55,210 [../../src/backend/bridge/dml/mapper/mapper_utils.cpp:89:GetGenericInfoFromScanState] INFO  - project_info : Target List: < DEST_column_id , expression >
+DirectMap List: < NEW_col_id , <tuple_idx , OLD_col_id>  > 
+<0, <0, 0> >
+<1, <0, 1> >
+<2, <0, 2> >
+
+02:00:55,210 [../../src/backend/bridge/dml/mapper/mapper_utils.cpp:123:GetGenericInfoFromScanState] INFO  - Pure direct map projection.
+02:00:55,210 [../../src/backend/bridge/dml/mapper/mapper_utils.cpp:42:BuildParams] INFO  - Built 0 params 
+02:01:33,213 [../../src/backend/bridge/dml/mapper/dml_utils.cpp:197:PrepareModifyTableState] INFO  - CMD_INSERT
+02:01:33,213 [../../src/backend/bridge/dml/mapper/mapper_modify_table.cpp:39:TransformModifyTable] INFO  - CMD_INSERT
+02:01:33,213 [../../src/backend/bridge/dml/mapper/mapper_modify_table.cpp:84:TransformInsert] INFO  - Insert into: database oid 12111 table oid 12136: example_unique
+02:01:33,213 [../../src/backend/bridge/dml/mapper/mapper_utils.cpp:42:BuildParams] INFO  - Built 0 params 
+02:01:33,214 [../../src/backend/bridge/dml/mapper/dml_utils.cpp:197:PrepareModifyTableState] INFO  - CMD_INSERT
+02:01:33,214 [../../src/backend/bridge/dml/mapper/mapper_modify_table.cpp:39:TransformModifyTable] INFO  - CMD_INSERT
+02:01:33,214 [../../src/backend/bridge/dml/mapper/mapper_modify_table.cpp:84:TransformInsert] INFO  - Insert into: database oid 12111 table oid 12136: example_unique
+02:01:33,214 [../../src/backend/bridge/dml/mapper/mapper_utils.cpp:42:BuildParams] INFO  - Built 0 params 
+02:02:01,460 [../../src/backend/bridge/dml/mapper/dml_utils.cpp:197:PrepareModifyTableState] INFO  - CMD_INSERT
+02:02:01,460 [../../src/backend/bridge/dml/mapper/mapper_modify_table.cpp:39:TransformModifyTable] INFO  - CMD_INSERT
+02:02:01,460 [../../src/backend/bridge/dml/mapper/mapper_modify_table.cpp:84:TransformInsert] INFO  - Insert into: database oid 12111 table oid 12136: example_unique
+02:02:01,461 [../../src/backend/bridge/dml/mapper/mapper_utils.cpp:42:BuildParams] INFO  - Built 0 params 
+02:02:15,078 [../../src/backend/bridge/dml/mapper/dml_utils.cpp:197:PrepareModifyTableState] INFO  - CMD_INSERT
+02:02:15,078 [../../src/backend/bridge/dml/mapper/mapper_modify_table.cpp:39:TransformModifyTable] INFO  - CMD_INSERT
+02:02:15,078 [../../src/backend/bridge/dml/mapper/mapper_modify_table.cpp:84:TransformInsert] INFO  - Insert into: database oid 12111 table oid 12136: example_unique
+02:02:15,079 [../../src/backend/bridge/dml/mapper/mapper_utils.cpp:42:BuildParams] INFO  - Built 0 params 
+02:02:49,936 [../../src/backend/bridge/dml/mapper/dml_utils.cpp:197:PrepareModifyTableState] INFO  - CMD_INSERT
+02:02:49,936 [../../src/backend/bridge/dml/mapper/mapper_modify_table.cpp:39:TransformModifyTable] INFO  - CMD_INSERT
+02:02:49,936 [../../src/backend/bridge/dml/mapper/mapper_modify_table.cpp:84:TransformInsert] INFO  - Insert into: database oid 12111 table oid 12141: products
+02:02:49,936 [../../src/backend/bridge/dml/tuple/tuple_transformer.cpp:288:GetValue] INFO  - PG decimal = 3 
+02:02:49,936 [../../src/backend/bridge/dml/mapper/mapper_utils.cpp:42:BuildParams] INFO  - Built 0 params 
+02:02:50,217 [../../src/backend/bridge/dml/mapper/dml_utils.cpp:197:PrepareModifyTableState] INFO  - CMD_INSERT
+02:02:50,217 [../../src/backend/bridge/dml/mapper/mapper_modify_table.cpp:39:TransformModifyTable] INFO  - CMD_INSERT
+02:02:50,217 [../../src/backend/bridge/dml/mapper/mapper_modify_table.cpp:84:TransformInsert] INFO  - Insert into: database oid 12111 table oid 12141: products
+02:02:50,217 [../../src/backend/bridge/dml/tuple/tuple_transformer.cpp:288:GetValue] INFO  - PG decimal = 3 
+02:02:50,217 [../../src/backend/bridge/dml/mapper/mapper_utils.cpp:42:BuildParams] INFO  - Built 0 params 
+02:03:00,498 [../../src/backend/bridge/dml/mapper/mapper_seq_scan.cpp:44:TransformSeqScan] INFO  - SeqScan: database oid 12111 table oid 12141: products
+02:03:00,498 [../../src/backend/bridge/dml/mapper/mapper_utils.cpp:270:BuildPredicateFromQual] INFO  - Predicate:
+02:03:00,498 [../../src/backend/bridge/dml/mapper/mapper_utils.cpp:272:BuildPredicateFromQual] INFO  - NULL
+02:03:00,498 [../../src/backend/bridge/dml/mapper/mapper_utils.cpp:89:GetGenericInfoFromScanState] INFO  - project_info : Target List: < DEST_column_id , expression >
+DirectMap List: < NEW_col_id , <tuple_idx , OLD_col_id>  > 
+<0, <0, 0> >
+<1, <0, 1> >
+<2, <0, 2> >
+
+02:03:00,498 [../../src/backend/bridge/dml/mapper/mapper_utils.cpp:123:GetGenericInfoFromScanState] INFO  - Pure direct map projection.
+02:03:00,498 [../../src/backend/bridge/dml/mapper/mapper_utils.cpp:42:BuildParams] INFO  - Built 0 params 
+02:03:12,651 [../../src/backend/bridge/dml/mapper/dml_utils.cpp:197:PrepareModifyTableState] INFO  - CMD_INSERT
+02:03:12,651 [../../src/backend/bridge/dml/mapper/mapper_modify_table.cpp:39:TransformModifyTable] INFO  - CMD_INSERT
+02:03:12,651 [../../src/backend/bridge/dml/mapper/mapper_modify_table.cpp:84:TransformInsert] INFO  - Insert into: database oid 12111 table oid 12136: example_unique
+02:03:12,651 [../../src/backend/bridge/dml/mapper/mapper_utils.cpp:42:BuildParams] INFO  - Built 0 params 
+02:03:25,236 [../../src/backend/bridge/dml/mapper/dml_utils.cpp:197:PrepareModifyTableState] INFO  - CMD_INSERT
+02:03:25,236 [../../src/backend/bridge/dml/mapper/mapper_modify_table.cpp:39:TransformModifyTable] INFO  - CMD_INSERT
+02:03:25,236 [../../src/backend/bridge/dml/mapper/mapper_modify_table.cpp:84:TransformInsert] INFO  - Insert into: database oid 12111 table oid 12136: example_unique
+02:03:25,236 [../../src/backend/bridge/dml/mapper/mapper_utils.cpp:42:BuildParams] INFO  - Built 0 params 
+ERROR:  syntax error at or near "INTO" at character 29
+STATEMENT:  select * from orders
+	INSERT INTO orders VALUES (1, 1, 3);
+WARNING:  GUC nest level = 1 at transaction start
+02:03:56,265 [../../src/backend/bridge/dml/mapper/dml_utils.cpp:197:PrepareModifyTableState] INFO  - CMD_INSERT
+02:03:56,265 [../../src/backend/bridge/dml/mapper/mapper_modify_table.cpp:39:TransformModifyTable] INFO  - CMD_INSERT
+02:03:56,265 [../../src/backend/bridge/dml/mapper/mapper_modify_table.cpp:84:TransformInsert] INFO  - Insert into: database oid 12111 table oid 12149: orders
+02:03:56,265 [../../src/backend/bridge/dml/mapper/mapper_utils.cpp:42:BuildParams] INFO  - Built 0 params 
+02:04:13,218 [../../src/backend/bridge/dml/mapper/dml_utils.cpp:197:PrepareModifyTableState] INFO  - CMD_INSERT
+02:04:13,218 [../../src/backend/bridge/dml/mapper/mapper_modify_table.cpp:39:TransformModifyTable] INFO  - CMD_INSERT
+02:04:13,218 [../../src/backend/bridge/dml/mapper/mapper_modify_table.cpp:84:TransformInsert] INFO  - Insert into: database oid 12111 table oid 12149: orders
+02:04:13,218 [../../src/backend/bridge/dml/mapper/mapper_utils.cpp:42:BuildParams] INFO  - Built 0 params 
+ERROR:  relation "orders；" does not exist at character 15
+STATEMENT:  select * from orders；
+	;
+WARNING:  GUC nest level = 1 at transaction start
+02:04:31,454 [../../src/backend/bridge/dml/mapper/mapper_seq_scan.cpp:44:TransformSeqScan] INFO  - SeqScan: database oid 12111 table oid 12149: orders
+02:04:31,454 [../../src/backend/bridge/dml/mapper/mapper_utils.cpp:270:BuildPredicateFromQual] INFO  - Predicate:
+02:04:31,454 [../../src/backend/bridge/dml/mapper/mapper_utils.cpp:272:BuildPredicateFromQual] INFO  - NULL
+02:04:31,454 [../../src/backend/bridge/dml/mapper/mapper_utils.cpp:89:GetGenericInfoFromScanState] INFO  - project_info : Target List: < DEST_column_id , expression >
+DirectMap List: < NEW_col_id , <tuple_idx , OLD_col_id>  > 
+<0, <0, 0> >
+<1, <0, 1> >
+<2, <0, 2> >
+
+02:04:31,454 [../../src/backend/bridge/dml/mapper/mapper_utils.cpp:123:GetGenericInfoFromScanState] INFO  - Pure direct map projection.
+02:04:31,454 [../../src/backend/bridge/dml/mapper/mapper_utils.cpp:42:BuildParams] INFO  - Built 0 params 
+02:05:26,510 [../../src/backend/bridge/dml/mapper/dml_utils.cpp:197:PrepareModifyTableState] INFO  - CMD_INSERT
+02:05:26,510 [../../src/backend/bridge/dml/mapper/mapper_modify_table.cpp:39:TransformModifyTable] INFO  - CMD_INSERT
+02:05:26,510 [../../src/backend/bridge/dml/mapper/mapper_modify_table.cpp:84:TransformInsert] INFO  - Insert into: database oid 12111 table oid 12159: order_items
+02:05:26,510 [../../src/backend/bridge/dml/mapper/mapper_utils.cpp:42:BuildParams] INFO  - Built 0 params 
+terminate called after throwing an instance of 'peloton::ConstraintException'
+  what():  Not NULL constraint violated : (<NULL>)(<NULL>)(DECIMAL::1.000000000000)
+

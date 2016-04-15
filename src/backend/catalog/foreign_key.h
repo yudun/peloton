@@ -32,8 +32,8 @@ class ForeignKey {
              std::vector<oid_t> pk_column_offsets,
              std::vector<std::string> fk_column_names,
              std::vector<oid_t> fk_column_offsets,
-             char fk_update_action,
-             char fk_delete_action, std::string constraint_name)
+             ForeignKeyActionType fk_update_action,
+             ForeignKeyActionType fk_delete_action, std::string constraint_name)
 
       : sink_table_id(sink_table_id),
         pk_column_names(pk_column_names),
@@ -71,8 +71,8 @@ class ForeignKey {
 
   // What to do when foreign key is updated or deleted ?
   // FIXME: Not used in our executors currently
-  char fk_update_action;
-  char fk_delete_action;
+  ForeignKeyActionType fk_update_action;
+  ForeignKeyActionType fk_delete_action;
 
   std::string fk_name;
 };

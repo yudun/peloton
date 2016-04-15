@@ -101,7 +101,7 @@ class Value;
 #define DEFAULT_DB_ID 12345
 #define DEFAULT_DB_NAME "default"
 
-#define DEFAULT_TUPLES_PER_TILEGROUP 1000
+extern int DEFAULT_TUPLES_PER_TILEGROUP;
 
 // TODO: Use ThreadLocalPool ?
 // This needs to be >= the VoltType.MAX_VALUE_LENGTH defined in java, currently
@@ -368,7 +368,9 @@ enum BackendType {
   BACKEND_TYPE_INVALID = 0,  // invalid backend type
 
   BACKEND_TYPE_MM = 1,   // on volatile memory
-  BACKEND_TYPE_FILE = 2  // on mmap file
+  BACKEND_TYPE_NVM = 2,  // on non-volatile memory
+  BACKEND_TYPE_SSD = 3,  // on ssd
+  BACKEND_TYPE_HDD = 4   // on hdd
 };
 
 //===--------------------------------------------------------------------===//
@@ -616,7 +618,15 @@ enum ConstraintType {
   CONSTRAINT_TYPE_PRIMARY = 5,   // primary key
   CONSTRAINT_TYPE_UNIQUE = 6,    // unique
   CONSTRAINT_TYPE_FOREIGN = 7,   // foreign key
-  CONSTRAINT_TYPE_EXCLUSION = 8  // foreign key
+  CONSTRAINT_TYPE_EXCLUSION = 8  // exclusion
+};
+
+enum ForeignKeyActionType {
+  FOREIGNKEY_ACTION_NOACTION = 0, //	'a'
+  FOREIGNKEY_ACTION_RESTRICT = 1, //	'r'
+  FOREIGNKEY_ACTION_CASCADE = 2, //  'c'
+  FOREIGNKEY_ACTION_SETNULL = 3, // 'n'
+  FOREIGNKEY_ACTION_SETDEFAULT = 4 //	'd'
 };
 
 //===--------------------------------------------------------------------===//
@@ -770,9 +780,11 @@ int64_t GetMaxTypeValue(ValueType type);
 
 bool HexDecodeToBinary(unsigned char *bufferdst, const char *hexString);
 
-bool IsBasedOnWriteAheadLogging(LoggingType logging_type);
+bool IsBasedOnWriteAheadLogging(const LoggingType& logging_type);
 
-bool IsBasedOnWriteBehindLogging(LoggingType logging_type);
+bool IsBasedOnWriteBehindLogging(const LoggingType& logging_type);
+
+BackendType GetBackendType(const LoggingType& logging_type);
 
 //===--------------------------------------------------------------------===//
 // Transformers
@@ -795,6 +807,9 @@ PlanNodeType StringToPlanNodeType(std::string str);
 
 std::string ConstraintTypeToString(ConstraintType type);
 ConstraintType StringToConstraintType(std::string str);
+
+char ForeignKeyActionTypeToChar(ForeignKeyActionType type);
+ForeignKeyActionType CharToForeignKeyActionType(char c);
 
 std::string LoggingTypeToString(LoggingType type);
 std::string LoggingStatusToString(LoggingStatus type);

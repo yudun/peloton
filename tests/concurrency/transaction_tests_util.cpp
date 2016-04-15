@@ -41,7 +41,7 @@ storage::DataTable *TransactionTestsUtil::CreateCombinedPrimaryKeyTable() {
   auto value_column = catalog::Column(
       VALUE_TYPE_INTEGER, GetTypeSize(VALUE_TYPE_INTEGER), "value", true);
   value_column.AddConstraint(catalog::Constraint(CONSTRAINT_TYPE_NOTNULL,
-                                                 "not_null"));
+                                              "not_null"));
 
   // Create the table
   catalog::Schema *table_schema =

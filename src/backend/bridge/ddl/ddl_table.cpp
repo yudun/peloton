@@ -42,35 +42,35 @@ namespace bridge {
  */
 
 bool DDLTable::ExecCreateStmt(Node *parsetree,
-                              std::vector<Node *> &parsetree_stack) {
-  List *stmts = ((CreateStmt *)parsetree)->stmts;
+                     std::vector<Node *> &parsetree_stack) {
+        List *stmts = ((CreateStmt *)parsetree)->stmts;
 
-  /* ... and do it */
-  ListCell *l;
-  foreach (l, stmts) {
-    Node *stmt = (Node *)lfirst(l);
-    if (IsA(stmt, CreateStmt)) {
-      CreateStmt *Cstmt = (CreateStmt *)stmt;
-      List *schema = (List *)(Cstmt->tableElts);
+        /* ... and do it */
+        ListCell *l;
+        foreach (l, stmts) {
+          Node *stmt = (Node *)lfirst(l);
+          if (IsA(stmt, CreateStmt)) {
+            CreateStmt *Cstmt = (CreateStmt *)stmt;
+            List *schema = (List *)(Cstmt->tableElts);
 
-      // Relation name and oid
-      char *relation_name = Cstmt->relation->relname;
-      Oid relation_oid = ((CreateStmt *)parsetree)->relation_id;
+            // Relation name and oid
+            char *relation_name = Cstmt->relation->relname;
+            Oid relation_oid = ((CreateStmt *)parsetree)->relation_id;
 
-      assert(relation_oid);
+            assert(relation_oid);
 
-      std::vector<catalog::Column> column_infos;
+            std::vector<catalog::Column> column_infos;
 
-      //===--------------------------------------------------------------------===//
-      // CreateStmt --> ColumnInfo --> CreateTable
-      //===--------------------------------------------------------------------===//
-      if (schema != NULL) {
-        DDLUtils::ParsingCreateStmt(Cstmt, column_infos);
+            //===--------------------------------------------------------------------===//
+            // CreateStmt --> ColumnInfo --> CreateTable
+            //===--------------------------------------------------------------------===//
+            if (schema != NULL) {
+              DDLUtils::ParsingCreateStmt(Cstmt, column_infos);
 
-        DDLTable::CreateTable(relation_oid, relation_name, column_infos);
-      }
-    }
-  }
+              DDLTable::CreateTable(relation_oid, relation_name, column_infos);
+            }
+          }
+        }
 
   //===--------------------------------------------------------------------===//
   // Rerun query
@@ -318,7 +318,8 @@ bool DDLTable::AddConstraint(Oid relation_oid, Constraint *constraint) {
       catalog::ForeignKey *foreign_key = new catalog::ForeignKey(
           PrimaryKeyTableId, pk_column_names, pk_column_offsets,
           fk_column_names, fk_column_offsets,
-          constraint->fk_upd_action, constraint->fk_del_action, conname);
+          CharToForeignKeyActionType(constraint->fk_upd_action),
+          CharToForeignKeyActionType(constraint->fk_del_action), conname);
       foreign_keys.push_back(*foreign_key);
 
     } break;
@@ -338,7 +339,7 @@ bool DDLTable::AddConstraint(Oid relation_oid, Constraint *constraint) {
 
 /**
  * @brief Set Reference Tables
- * @param reference table namees  reference table names
+ * @param reference table names
  * @param relation_oid relation oid
  * @return true if we set the reference tables, false otherwise
  */
