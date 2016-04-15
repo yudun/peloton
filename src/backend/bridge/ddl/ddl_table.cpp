@@ -318,7 +318,8 @@ bool DDLTable::AddConstraint(Oid relation_oid, Constraint *constraint) {
       catalog::ForeignKey *foreign_key = new catalog::ForeignKey(
           PrimaryKeyTableId, pk_column_names, pk_column_offsets,
           fk_column_names, fk_column_offsets,
-          constraint->fk_upd_action, constraint->fk_del_action, conname);
+          CharToForeignKeyActionType(constraint->fk_upd_action),
+          CharToForeignKeyActionType(constraint->fk_del_action), conname);
       foreign_keys.push_back(*foreign_key);
 
     } break;

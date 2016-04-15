@@ -616,7 +616,15 @@ enum ConstraintType {
   CONSTRAINT_TYPE_PRIMARY = 5,   // primary key
   CONSTRAINT_TYPE_UNIQUE = 6,    // unique
   CONSTRAINT_TYPE_FOREIGN = 7,   // foreign key
-  CONSTRAINT_TYPE_EXCLUSION = 8  // foreign key
+  CONSTRAINT_TYPE_EXCLUSION = 8  // exclusion
+};
+
+enum ForeignKeyActionType {
+  FOREIGNKEY_ACTION_NOACTION = 0, //	'a'
+  FOREIGNKEY_ACTION_RESTRICT = 1, //	'r'
+  FOREIGNKEY_ACTION_CASCADE = 2, //  'c'
+  FOREIGNKEY_ACTION_SETNULL = 3, // 'n'
+  FOREIGNKEY_ACTION_SETDEFAULT = 4 //	'd'
 };
 
 //===--------------------------------------------------------------------===//
@@ -795,6 +803,9 @@ PlanNodeType StringToPlanNodeType(std::string str);
 
 std::string ConstraintTypeToString(ConstraintType type);
 ConstraintType StringToConstraintType(std::string str);
+
+char ForeignKeyActionTypeToChar(ForeignKeyActionType type);
+ForeignKeyActionType CharToForeignKeyActionType(char c);
 
 std::string LoggingTypeToString(LoggingType type);
 std::string LoggingStatusToString(LoggingStatus type);

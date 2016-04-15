@@ -377,7 +377,7 @@ bool DataTable::CheckForeignKeyConstraints(const storage::Tuple *tuple) {
       if (index->GetIndexType() == INDEX_CONSTRAINT_TYPE_PRIMARY_KEY) {
         LOG_INFO("BEGIN CHECKING REFERED TABLE");
         auto key_attrs = foreign_key->GetFKColumnOffsets();
-        LOG_INFO("CHECK COLUMN OFFSET = %lu", key_attrs);
+        LOG_INFO("CHECK COLUMN OFFSET = %lu", key_attrs[0]);
 
         std::unique_ptr<catalog::Schema> foreign_key_schema(catalog::Schema::CopySchema(schema, key_attrs));
         std::unique_ptr<storage::Tuple> key(new storage::Tuple(foreign_key_schema.get(), true));

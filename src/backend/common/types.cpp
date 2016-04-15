@@ -895,6 +895,44 @@ ConstraintType StringToConstraintType(std::string str) {
   return CONSTRAINT_TYPE_INVALID;
 }
 
+char ForeignKeyActionTypeToChar(ForeignKeyActionType type) {
+  switch (type) {
+    case FOREIGNKEY_ACTION_NOACTION:
+      return 'a';
+    case FOREIGNKEY_ACTION_RESTRICT:
+      return 'r';
+    case FOREIGNKEY_ACTION_CASCADE:
+      return 'c';
+    case FOREIGNKEY_ACTION_SETNULL:
+      return 'n';
+    case FOREIGNKEY_ACTION_SETDEFAULT:
+      return 'd';
+
+    default:
+    LOG_ERROR("Invalid logging_type :: %d", type);
+      exit(EXIT_FAILURE);
+  }
+}
+
+ForeignKeyActionType CharToForeignKeyActionType(char c) {
+  switch (c) {
+    case 'a':
+      return FOREIGNKEY_ACTION_NOACTION;
+    case 'r':
+      return FOREIGNKEY_ACTION_RESTRICT;
+    case 'c':
+      return FOREIGNKEY_ACTION_CASCADE;
+    case 'n':
+      return FOREIGNKEY_ACTION_SETNULL;
+    case 'd':
+      return FOREIGNKEY_ACTION_SETDEFAULT;
+
+    default:
+    LOG_ERROR("Invalid logging_type :: %c", c);
+      exit(EXIT_FAILURE);
+  }
+}
+
 //===--------------------------------------------------------------------===//
 // Log Types - String Utilities
 //===--------------------------------------------------------------------===//

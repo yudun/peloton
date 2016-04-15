@@ -228,7 +228,8 @@ TEST_F(ConstraintsTests, ForeignKeyInsertTest) {
 
   // add the foreign key constraints for table_A
   std::unique_ptr<catalog::ForeignKey> foreign_key(new catalog::ForeignKey(
-      1001, {"id"}, {0}, {"id"}, {0}, 'r', 'c', "THIS_IS_FOREIGN_CONSTRAINT"));
+      1001, {"id"}, {0}, {"id"}, {0}, FOREIGNKEY_ACTION_NOACTION,
+      FOREIGNKEY_ACTION_NOACTION, "THIS_IS_FOREIGN_CONSTRAINT"));
   table_A->AddForeignKey(foreign_key.get());
 
   auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
