@@ -104,7 +104,7 @@ catalog::Column ConstraintsTestsUtil::GetColumnInfo(int index) {
 
     default: {
       throw ExecutorException("Invalid column index : " +
-                              std::to_string(index));
+          std::to_string(index));
     }
   }
 

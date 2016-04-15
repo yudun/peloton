@@ -40,7 +40,6 @@ namespace test {
 
 class ConstraintsTests : public PelotonTest {};
 
-#ifdef NOTNULL_TEST
 TEST_F(ConstraintsTests, NOTNULLTest) {
   // First, generate the table with index
   // this table has 15 rows:
@@ -99,6 +98,7 @@ TEST_F(ConstraintsTests, NOTNULLTest) {
 #endif
 
 #ifdef PRIMARY_UNIQUEKEY_TEST
+
 TEST_F(ConstraintsTests, CombinedPrimaryKeyTest) {
   // First, generate the table with index
   // this table has 10 rows:
