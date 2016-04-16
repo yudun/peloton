@@ -227,7 +227,10 @@ bool DDLTable::AlterTable(Oid relation_oid, AlterTableStmt *Astmt) {
       case AT_DropNotNull:
       {
           LOG_INFO("ALTER TABLE === DROP NOT NULL ");
-
+          bool status = DropNotNull(relation_oid, (Constraint *)cmd->def);
+          if (status == false) {
+             LOG_WARN("Failed to add constraint");
+          }
           break;
       }
       case AT_DropConstraint:
@@ -349,6 +352,27 @@ bool DDLTable::AddConstraint(Oid relation_oid, Constraint *constraint) {
 
   return true;
 }
+
+bool DDLTable::DropNotNull(Oid relation_oid, Constraint *constraint){
+
+  LOG_INFO("=== DROP NOT NULL ===");
+  oid_t database_oid = Bridge::GetCurrentDatabaseOid();
+  assert(database_oid);
+
+  auto &manager = catalog::Manager::GetInstance();
+  storage::Database *db = manager.GetDatabaseWithOid(database_oid);
+
+  storage::DataTable* targetTable = db->GetTableWithOid(relation_oid);
+
+  catalog::Schema* targetSchema = targetTable->GetSchema();
+
+  ConstraintType nowConstrain =  PostgresConstraintTypeToPelotonConstraintType(
+          (PostgresConstraintType)constraint->contype);
+
+  LOG_INFO("=== TRIGGER SCHEMA DROP ====");
+  return targetSchema->DropNotNull( catalog::Constraint(nowConstrain,std::string(constraint->conname)) );
+}
+
 
 /**
  * @brief Drop existing constraint to the table
