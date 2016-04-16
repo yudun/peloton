@@ -701,6 +701,28 @@ index::Index *DataTable::GetIndex(const oid_t &index_offset) const {
   return index;
 }
 
+oid_t DataTable::GetIndexIdWithColumnOffsets(const std::vector<oid_t>& offsets) const {
+  for (auto index : indexes_) {
+    auto indexColumns = index->GetKeySchema()->GetIndexedColumns();
+    // check if these two offsets set are the same
+    if (offsets.size() == indexColumns.size()) {
+      bool sameset = true;
+      for (unsigned long i = 0; i < offsets.size(); i++) {
+        if (offsets[i] != indexColumns[i]) {
+          sameset = false;
+          break;
+        }
+      }
+      // if this index corresponds with the columns sets, we return its oid
+      if (sameset) {
+        return index->GetOid();
+      }
+    }
+  }
+
+  return INVALID_OID;
+}
+
 oid_t DataTable::GetIndexCount() const { return indexes_.size(); }
 
 //===--------------------------------------------------------------------===//

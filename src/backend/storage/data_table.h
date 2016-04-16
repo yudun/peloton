@@ -142,6 +142,8 @@ class DataTable : public AbstractTable {
 
   index::Index *GetIndex(const oid_t &index_offset) const;
 
+  oid_t GetIndexIdWithColumnOffsets(const std::vector<oid_t>& offsets) const;
+
   oid_t GetIndexCount() const;
 
   //===--------------------------------------------------------------------===//
@@ -262,7 +264,8 @@ class DataTable : public AbstractTable {
 
   // CONSTRAINTS
   std::vector<catalog::ForeignKey *> foreign_keys_;
-
+  // RECORD WHICH FOREIGN KEYS REFERS THIS TABLE
+  std::vector<catalog::ForeignKey *> refered_foreign_keys_;
 
   // has a primary key ?
   std::atomic<bool> has_primary_key_ = ATOMIC_VAR_INIT(false);

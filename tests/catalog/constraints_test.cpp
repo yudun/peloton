@@ -224,12 +224,15 @@ TEST_F(ConstraintsTests, ForeignKeyInsertTest) {
 
   auto table_A =
       TransactionTestsUtil::CreateTable(3, "tableA", 0, 1000, 1000, true);
-  // we wouldn't use table_B later here so we don't save the return value
-  TransactionTestsUtil::CreateTable(10, "tableB", 0, 1001, 1001, true);
+  auto table_B =
+      TransactionTestsUtil::CreateTable(10, "tableB", 0, 1001, 1001, true);
 
   // add the foreign key constraints for table_A
   std::unique_ptr<catalog::ForeignKey> foreign_key(new catalog::ForeignKey(
-      1001, {"id"}, {0}, {"id"}, {0}, FOREIGNKEY_ACTION_NOACTION,
+      1000, 1001,
+      table_B->GetIndexIdWithColumnOffsets({0}),
+      table_A->GetIndexIdWithColumnOffsets({0}),
+      {"id"}, {0}, {"id"}, {0}, FOREIGNKEY_ACTION_NOACTION,
       FOREIGNKEY_ACTION_NOACTION, "THIS_IS_FOREIGN_CONSTRAINT"));
   table_A->AddForeignKey(foreign_key.get());
 
