@@ -49,7 +49,10 @@ class ForeignKey {
         fk_delete_action(fk_delete_action),
         fk_name(constraint_name) {}
 
+  oid_t GetSrcTableOid() const { return src_table_id; }
   oid_t GetSinkTableOid() const { return sink_table_id; }
+  oid_t GetSrcIndexOid() const { return fk_index_id; }
+  oid_t GetSinkIndexOid() const { return pk_index_id; }
 
   std::vector<std::string> GetPKColumnNames() const { return pk_column_names; }
   std::vector<oid_t> GetPKColumnOffsets() const { return pk_column_offsets; }

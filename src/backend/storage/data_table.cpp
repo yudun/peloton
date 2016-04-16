@@ -356,6 +356,12 @@ bool DataTable::InsertInSecondaryIndexes(const storage::Tuple *tuple,
 bool DataTable::CheckForeignKeyConstraints(const storage::Tuple *tuple) {
 
   for (auto foreign_key : foreign_keys_) {
+    LOG_INFO("This foreignKey is from table %lu:index %lu to table %lu:index %lu",
+             foreign_key->GetSrcTableOid(),
+             foreign_key->GetSrcIndexOid(),
+             foreign_key->GetSinkTableOid(),
+             foreign_key->GetSinkIndexOid());
+
     oid_t sink_table_id = foreign_key->GetSinkTableOid();
     storage::DataTable *ref_table =
         (storage::DataTable *)catalog::Manager::GetInstance().GetTableWithOid(
@@ -366,8 +372,9 @@ bool DataTable::CheckForeignKeyConstraints(const storage::Tuple *tuple) {
     for (int index_itr = ref_table_index_count - 1; index_itr >= 0; --index_itr) {
       auto index = ref_table->GetIndex(index_itr);
 
-      // The foreign key constraints only refer to the primary key
-      if (index->GetIndexType() == INDEX_CONSTRAINT_TYPE_PRIMARY_KEY) {
+      // Get the index in the refered table corresponding with
+      // this foreign key constraint
+      if (index->GetOid() == foreign_key->GetSinkIndexOid()) {
         LOG_INFO("BEGIN CHECKING REFERED TABLE");
         auto key_attrs = foreign_key->GetFKColumnOffsets();
         LOG_INFO("CHECK COLUMN OFFSET = %lu", key_attrs[0]);
