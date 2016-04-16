@@ -224,6 +224,19 @@ bool DDLTable::AlterTable(Oid relation_oid, AlterTableStmt *Astmt) {
         }
         break;
       }
+      case AT_DropNotNull:
+      {
+          LOG_INFO("ALTER TABLE === DROP NOT NULL ");
+
+          break;
+      }
+      case AT_DropConstraint:
+      {
+        LOG_INFO("ALTER TABLE === DROP CONSTRAINT ");
+        //bool status = DropConstraint(relation_oid, (Constraint *)cmd->def);
+        break;
+      }
+
       default:
         break;
     }
@@ -336,6 +349,41 @@ bool DDLTable::AddConstraint(Oid relation_oid, Constraint *constraint) {
 
   return true;
 }
+
+/**
+ * @brief Drop existing constraint to the table
+ * @param relation_oid relation oid
+ * @param constraint constraint
+ * @return true if successfully drop the constraint, false otherwise
+ */
+/*
+bool DDLTable::DropConstraint(Oid relation_oid, Constraint *constraint) {
+
+  ConstraintType contype = PostgresConstraintTypeToPelotonConstraintType(
+          (PostgresConstraintType)constraint->contype);
+
+  std::string conname;
+
+  if (constraint->conname != NULL) {
+    conname = constraint->conname;
+  } else {
+    conname = "";
+  }
+
+  switch (contype) {
+    case CONSTRAINT_TYPE_UNIQUE: {
+      break;
+    }
+    case CONSTRAINT_TYPE_FOREIGN: {
+      break;
+    }
+    default:
+      break;
+  }
+  return false;
+}
+*/
+
 
 /**
  * @brief Set Reference Tables
