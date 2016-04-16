@@ -99,15 +99,20 @@ std::shared_ptr<const Schema> Schema::CopySchema(
     const std::vector<oid_t> &set) {
   oid_t column_count = schema->GetColumnCount();
   std::vector<Column> columns;
+  std::vector<oid_t> indexed_columns;
 
   for (oid_t column_itr = 0; column_itr < column_count; column_itr++) {
     // If column exists in set
     if (std::find(set.begin(), set.end(), column_itr) != set.end()) {
       columns.push_back(schema->columns[column_itr]);
+      indexed_columns.push_back(column_itr);
     }
   }
 
-  return std::shared_ptr<Schema>(new Schema(columns));
+  auto res = std::shared_ptr<Schema>(new Schema(columns));
+  res->SetIndexedColumns(indexed_columns);
+
+  return res;
 }
 
 // Backward compatible for raw pointers
@@ -127,15 +132,19 @@ Schema *Schema::CopySchema(const Schema *schema,
                            const std::vector<oid_t> &set) {
   oid_t column_count = schema->GetColumnCount();
   std::vector<Column> columns;
+  std::vector<oid_t> indexed_columns;
 
   for (oid_t column_itr = 0; column_itr < column_count; column_itr++) {
     // If column exists in set
     if (std::find(set.begin(), set.end(), column_itr) != set.end()) {
       columns.push_back(schema->columns[column_itr]);
+      indexed_columns.push_back(column_itr);
     }
   }
 
   Schema *ret_schema = new Schema(columns);
+  ret_schema->SetIndexedColumns(indexed_columns);
+
   return ret_schema;
 }
 
