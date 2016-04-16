@@ -60,7 +60,10 @@ void raw_foreign_key_info::CreateForeignkey(void) const {
   }
 
   catalog::ForeignKey *foreign_key = new catalog::ForeignKey(
-      sink_table_oid, sink_column_names, new_sink_column_offsets,
+      source_table_id, sink_table_id,
+      sink_table->GetIndexIdWithColumnOffsets(new_sink_column_offsets),
+      source_table->GetIndexIdWithColumnOffsets(new_source_column_offsets),
+      sink_column_names, new_sink_column_offsets,
       source_column_names, new_source_column_offsets,
       CharToForeignKeyActionType(update_action),
       CharToForeignKeyActionType(delete_action), fk_name);

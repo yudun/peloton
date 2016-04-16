@@ -285,9 +285,10 @@ bool DDLTable::AddConstraint(Oid relation_oid, Constraint *constraint) {
       auto &manager = catalog::Manager::GetInstance();
       storage::Database *db = manager.GetDatabaseWithOid(database_oid);
 
-      // PrimaryKey Table
-      oid_t PrimaryKeyTableId =
-          db->GetTableWithName(constraint->pktable->relname)->GetOid();
+      // ForeignKey Table and PrimaryKey Table
+      auto fk_table = manager.GetTableWithOid(database_oid, relation_oid);
+      auto pk_table = db->GetTableWithName(constraint->pktable->relname);
+      oid_t PrimaryKeyTableId = pk_table->GetOid();
 
       // Each table column names and offsets
       std::vector<std::string> pk_column_names;
@@ -316,7 +317,10 @@ bool DDLTable::AddConstraint(Oid relation_oid, Constraint *constraint) {
 
 
       catalog::ForeignKey *foreign_key = new catalog::ForeignKey(
-          PrimaryKeyTableId, pk_column_names, pk_column_offsets,
+          relation_oid, PrimaryKeyTableId,
+          pk_table->GetIndexIdWithColumnOffsets(pk_column_offsets),
+          fk_table->GetIndexIdWithColumnOffsets(pk_column_offsets),
+          pk_column_names, pk_column_offsets,
           fk_column_names, fk_column_offsets,
           CharToForeignKeyActionType(constraint->fk_upd_action),
           CharToForeignKeyActionType(constraint->fk_del_action), conname);

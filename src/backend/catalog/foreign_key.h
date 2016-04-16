@@ -28,14 +28,19 @@ namespace catalog {
 // Stores info about foreign key constraints, like the sink table id etc.
 class ForeignKey {
  public:
-  ForeignKey(oid_t sink_table_id, std::vector<std::string> pk_column_names,
+  ForeignKey(oid_t src_table_id, oid_t sink_table_id,
+             oid_t pk_index_id, oid_t fk_index_id,
+             std::vector<std::string> pk_column_names,
              std::vector<oid_t> pk_column_offsets,
              std::vector<std::string> fk_column_names,
              std::vector<oid_t> fk_column_offsets,
              ForeignKeyActionType fk_update_action,
              ForeignKeyActionType fk_delete_action, std::string constraint_name)
 
-      : sink_table_id(sink_table_id),
+      : src_table_id(src_table_id),
+        sink_table_id(sink_table_id),
+        pk_index_id(pk_index_id),
+        fk_index_id(fk_index_id),
         pk_column_names(pk_column_names),
         pk_column_offsets(pk_column_offsets),
         fk_column_names(fk_column_names),
@@ -58,7 +63,10 @@ class ForeignKey {
   std::string &GetConstraintName() { return fk_name; }
 
  private:
+  oid_t src_table_id = INVALID_OID;
   oid_t sink_table_id = INVALID_OID;
+  oid_t pk_index_id = INVALID_OID;
+  oid_t fk_index_id = INVALID_OID;
 
   // Columns in the reference table (sink)
   std::vector<std::string> pk_column_names;
