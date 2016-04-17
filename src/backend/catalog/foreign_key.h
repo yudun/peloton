@@ -59,9 +59,9 @@ class ForeignKey {
   std::vector<std::string> GetFKColumnNames() const { return fk_column_names; }
   std::vector<oid_t> GetFKColumnOffsets() const { return fk_column_offsets; }
 
-  char GetUpdateAction() const { return fk_update_action; }
+  ForeignKeyActionType GetUpdateAction() const { return fk_update_action; }
 
-  char GetDeleteAction() const { return fk_delete_action; }
+  ForeignKeyActionType GetDeleteAction() const { return fk_delete_action; }
 
   std::string &GetConstraintName() { return fk_name; }
 

@@ -25,6 +25,7 @@
 #include "backend/storage/tile_group_header.h"
 #include "backend/storage/tuple.h"
 #include "backend/concurrency/transaction_manager_factory.h"
+#include "backend/index/index.h"
 
 namespace peloton {
 namespace executor {
@@ -88,6 +89,85 @@ bool DeleteExecutor::DExecute() {
 
   LOG_TRACE("Transaction ID: %lu",
             executor_context_->GetTransaction()->GetTransactionId());
+
+  // Check the foreign key constraints for possible cascading action
+  oid_t referedFKNum = target_table_->GetReferedForeignKeyCount();
+
+  for (oid_t i = 0; i < referedFKNum; ++i) {
+    auto foreign_key = target_table_->GetRefferedForeignKey(i);
+
+    switch (foreign_key->GetDeleteAction()) {
+      case FOREIGNKEY_ACTION_NOACTION:
+      case FOREIGNKEY_ACTION_RESTRICT: {
+        bool isReferenced = false;
+        oid_t database_oid = bridge::Bridge::GetCurrentDatabaseOid();
+        // get source table
+        auto &manager = catalog::Manager::GetInstance();
+        auto source_table = manager.GetTableWithOid(database_oid, foreign_key->GetSrcTableOid());
+        assert(source_table);
+        // get the index associated with the referencing keys
+        index::Index* fk_index = source_table->GetIndexWithOid(foreign_key->GetSrcIndexOid());
+
+        for (oid_t visible_tuple_id : *source_tile) {
+          expression::ContainerTuple<LogicalTile> cur_tuple(source_tile.get(),
+                                                            visible_tuple_id);
+
+          // Build referening key from this tuple to be used
+          // to search the index
+          std::unique_ptr<catalog::Schema>
+              foreign_key_schema(catalog::Schema::CopySchema(source_table->GetSchema(),
+                                                             foreign_key->GetFKColumnOffsets()));
+          std::unique_ptr<storage::Tuple> key(new storage::Tuple(foreign_key_schema.get(), true));
+
+          for (oid_t offset : foreign_key->GetFKColumnOffsets()) {
+            key->SetValue(offset, cur_tuple.GetValue(offset), fk_index->GetPool());
+          }
+
+          LOG_INFO("Check restrict foreign key: %s", key->GetInfo().c_str());
+          // search this key in the source table's index
+          auto locations = fk_index->ScanKey(key.get());
+
+          auto &transaction_manager =
+              concurrency::TransactionManagerFactory::GetInstance();
+          // if visible key doesn't exist in the refered column
+          bool visible_key_exist = false;
+          if (locations.size() > 0) {
+            for(unsigned long i = 0; i < locations.size(); i++) {
+              auto tile_group_header = catalog::Manager::GetInstance()
+                  .GetTileGroup(locations[i].block)->GetHeader();
+              auto tuple_id = locations[i].offset;
+              if (transaction_manager.IsVisible(tile_group_header, tuple_id)) {
+                visible_key_exist = true;
+                break;
+              }
+            }
+          }
+
+          if (visible_key_exist) {
+            isReferenced = true;
+            break;
+          }
+        }
+        if (isReferenced) {
+          transaction_manager.SetTransactionResult(RESULT_FAILURE);
+          LOG_WARN("ForeignKey constraint violated: RESTRICT - "
+                       "Deleted tuple appears in referencing table %s",
+                   source_table->GetName().c_str());
+          return false;
+        }
+      }
+        break;
+
+      case FOREIGNKEY_ACTION_CASCADE:
+      case FOREIGNKEY_ACTION_SETNULL:
+      case FOREIGNKEY_ACTION_SETDEFAULT:
+        break;
+      default:
+        LOG_ERROR("Invalid logging_type :: %d", foreign_key->GetDeleteAction());
+        exit(EXIT_FAILURE);
+    }
+
+  }
 
   // Delete each tuple
   for (oid_t visible_tuple_id : *source_tile) {

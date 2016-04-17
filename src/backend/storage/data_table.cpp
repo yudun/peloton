@@ -177,7 +177,7 @@ ItemPointer DataTable::InsertEmptyVersion(const storage::Tuple *tuple) {
 
   // ForeignKey checks
   if (CheckForeignKeyConstraints(tuple) == false) {
-    LOG_WARN("ForeignKey constraint violated");
+    LOG_WARN("ForeignKey constraint violated: inserted value doesn't appear in refered table");
     return INVALID_ITEMPOINTER;
   }
 
@@ -203,7 +203,7 @@ ItemPointer DataTable::InsertVersion(const storage::Tuple *tuple) {
 
   // ForeignKey checks
   if (CheckForeignKeyConstraints(tuple) == false) {
-    LOG_WARN("ForeignKey constraint violated");
+    LOG_WARN("ForeignKey constraint violated: inserted value doesn't appear in refered table");
     return INVALID_ITEMPOINTER;
   }
 
@@ -231,7 +231,7 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple) {
 
   // ForeignKey checks
   if (CheckForeignKeyConstraints(tuple) == false) {
-    LOG_WARN("ForeignKey constraint violated");
+    LOG_WARN("ForeignKey constraint violated: inserted value doesn't appear in refered table");
     return INVALID_ITEMPOINTER;
   }
 
@@ -746,10 +746,27 @@ void DataTable::AddForeignKey(catalog::ForeignKey *key) {
     for (auto fk_column : key->GetFKColumnNames()) {
       schema->AddConstraint(fk_column, constraint);
     }
-    // TODO :: We need this one..
-    catalog::ForeignKey *fk = new catalog::ForeignKey(*key);
-    foreign_keys_.push_back(fk);
+
+    // Add this foreign key to this table's foreign_keys_ vector
+    foreign_keys_.push_back(key);
+
+    // Also add this foreign key to refered table's refered_foreign_keys_ vector
+    oid_t database_oid = bridge::Bridge::GetCurrentDatabaseOid();
+    // get source, sink tables
+    auto &manager = catalog::Manager::GetInstance();
+    auto sink_table = manager.GetTableWithOid(database_oid, key->GetSinkTableOid());
+    sink_table->AddReferringForeignKey(key);
   }
+}
+
+void DataTable::AddReferringForeignKey( catalog::ForeignKey * const key) {
+  refered_foreign_keys_.push_back(key);
+}
+
+catalog::ForeignKey * DataTable::GetRefferedForeignKey(const oid_t &key_offset) const {
+  catalog::ForeignKey *key = nullptr;
+  key = refered_foreign_keys_.at(key_offset);
+  return key;
 }
 
 catalog::ForeignKey *DataTable::GetForeignKey(const oid_t &key_offset) const {
@@ -767,6 +784,8 @@ void DataTable::DropForeignKey(const oid_t &key_offset) {
 }
 
 oid_t DataTable::GetForeignKeyCount() const { return foreign_keys_.size(); }
+
+oid_t DataTable::GetReferedForeignKeyCount() const { return refered_foreign_keys_.size(); }
 
 // Get the schema for the new transformed tile group
 std::vector<catalog::Schema> TransformTileGroupSchema(

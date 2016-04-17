@@ -152,11 +152,17 @@ class DataTable : public AbstractTable {
 
   void AddForeignKey(catalog::ForeignKey *key);
 
+  void AddReferringForeignKey(catalog::ForeignKey *const key);
+
+  catalog::ForeignKey *GetRefferedForeignKey(const oid_t &key_offset) const;
+
   catalog::ForeignKey *GetForeignKey(const oid_t &key_offset) const;
 
   void DropForeignKey(const oid_t &key_offset);
 
   oid_t GetForeignKeyCount() const;
+
+  oid_t GetReferedForeignKeyCount() const;
 
   //===--------------------------------------------------------------------===//
   // TRANSFORMERS
