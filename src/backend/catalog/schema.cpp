@@ -252,5 +252,25 @@ bool Schema::operator==(const Schema &other) const {
 
 bool Schema::operator!=(const Schema &other) const { return !(*this == other); }
 
+
+bool Schema::DropNotNull(Constraint constraint)  {
+
+  oid_t total_column = GetColumnCount();
+  for (oid_t column_itr = 0; column_itr < total_column; column_itr++) {
+    std::vector<catalog::Constraint> cons = GetColumn(column_itr).constraints;
+    for(oid_t conid=0; conid<cons.size(); conid++) {
+
+      if( cons[conid].GetType() == constraint.GetType() && cons[conid].GetName() == constraint.GetName()) {
+        cons.erase( cons.begin() + conid );
+        return true;
+      }
+    }
+  }
+  return false;
+
+}
+
+
+
 }  // End catalog namespace
 }  // End peloton namespace
