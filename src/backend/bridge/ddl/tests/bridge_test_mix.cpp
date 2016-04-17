@@ -103,8 +103,9 @@ void BridgeTest::DDL_MIX_TEST_1() {
   CheckColumnWithConstraint(column, CONSTRAINT_TYPE_FOREIGN,
                             "THIS_IS_FOREIGN_CONSTRAINT", 1, 0);
   catalog::ForeignKey *pktable = table->GetForeignKey(0);
-  CheckForeignKey(pktable, pktable_oid, "THIS_IS_FOREIGN_CONSTRAINT", 1, 1, 'r',
-                  'c');
+  CheckForeignKey(pktable, pktable_oid, "THIS_IS_FOREIGN_CONSTRAINT", 1, 1,
+                  FOREIGNKEY_ACTION_RESTRICT,
+                  FOREIGNKEY_ACTION_CASCADE);
 
   // Drop the table
   status = DDLTable::DropTable(table_oid);
