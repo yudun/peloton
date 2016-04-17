@@ -29,7 +29,8 @@
 
 #define NOTNULL_TEST
 #define PRIMARY_UNIQUEKEY_TEST
-#define FOREIGHN_KEY_TEST
+#define FOREIGHN_KEY_INSERT_TEST
+#define FOREIGHN_KEY_DELETE_TEST
 
 namespace peloton {
 namespace test {
@@ -205,8 +206,7 @@ TEST_F(ConstraintsTests, MultiTransactionUniqueConstraintsTest) {
 }
 #endif
 
-#ifdef FOREIGHN_KEY_TEST
-TEST_F(ConstraintsTests, ForeignKeyInsertTest) {
+TEST_F(ConstraintsTests, ForeignKeyTest) {
   // First, initial 2 tables like following
   //     TABLE A -- src table          TABLE B -- sink table
   // int(primary, ref B)  int            int(primary)  int
@@ -221,29 +221,30 @@ TEST_F(ConstraintsTests, ForeignKeyInsertTest) {
   oid_t current_db_oid = bridge::Bridge::GetCurrentDatabaseOid();
   auto newdb = new storage::Database(current_db_oid);
   manager.AddDatabase(newdb);
-
-  auto table_A =
-      TransactionTestsUtil::CreateTable(3, "tableA", 0, 1000, 1000, true);
-  auto table_B =
-      TransactionTestsUtil::CreateTable(10, "tableB", 0, 1001, 1001, true);
-
-  // add the foreign key constraints for table_A
-  std::unique_ptr<catalog::ForeignKey> foreign_key(new catalog::ForeignKey(
-      1000, 1001,
-      table_B->GetIndexIdWithColumnOffsets({0}),
-      table_A->GetIndexIdWithColumnOffsets({0}),
-      {"id"}, {0}, {"id"}, {0}, FOREIGNKEY_ACTION_NOACTION,
-      FOREIGNKEY_ACTION_NOACTION, "THIS_IS_FOREIGN_CONSTRAINT"));
-  table_A->AddForeignKey(foreign_key.get());
-
   auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
 
-  // Test1: insert 2 tuple, one of which doesn't follow foreign key constraint
-  // txn0 insert (10,10) --> fail
-  // txn1 insert (9,10) --> success
-  // txn0 commit
-  // txn1 commit
+#ifdef FOREIGHN_KEY_INSERT_TEST
   {
+    auto table_A =
+        TransactionTestsUtil::CreateTable(3, "tableA", 0, 1000, 1000, true);
+    auto table_B =
+        TransactionTestsUtil::CreateTable(10, "tableB", 0, 1001, 1001, true);
+
+    // add the foreign key constraints for table_A
+    auto foreign_key = new catalog::ForeignKey(
+        1000, 1001,
+        table_B->GetIndexIdWithColumnOffsets({0}),
+        table_A->GetIndexIdWithColumnOffsets({0}),
+        {"id"}, {0}, {"id"}, {0}, FOREIGNKEY_ACTION_NOACTION,
+        FOREIGNKEY_ACTION_NOACTION, "THIS_IS_FOREIGN_CONSTRAINT");
+    table_A->AddForeignKey(foreign_key);
+
+
+    // Test1: insert 2 tuple, one of which doesn't follow foreign key constraint
+    // txn0 insert (10,10) --> fail
+    // txn1 insert (9,10) --> success
+    // txn0 commit
+    // txn1 commit
     TransactionScheduler scheduler(2, table_A, &txn_manager);
     scheduler.Txn(0).Insert(10, 10);
     scheduler.Txn(1).Insert(9, 10);
@@ -255,11 +256,46 @@ TEST_F(ConstraintsTests, ForeignKeyInsertTest) {
     EXPECT_TRUE(RESULT_ABORTED == scheduler.schedules[0].txn_result);
     EXPECT_TRUE(RESULT_SUCCESS == scheduler.schedules[1].txn_result);
   }
+#endif
+
+#ifdef FOREIGHN_KEY_DELETE_TEST
+  {
+    auto table_C =
+        TransactionTestsUtil::CreateTable(3, "tableC", 0, 2000, 2000, true);
+    auto table_D =
+        TransactionTestsUtil::CreateTable(10, "tableD", 0, 2001, 2001, true);
+
+    // add the foreign key constraints for table_A
+    auto foreign_key = new catalog::ForeignKey(
+        2000, 2001,
+        table_D->GetIndexIdWithColumnOffsets({0}),
+        table_C->GetIndexIdWithColumnOffsets({0}),
+        {"id"}, {0}, {"id"}, {0}, FOREIGNKEY_ACTION_NOACTION,
+        FOREIGNKEY_ACTION_NOACTION, "THIS_IS_FOREIGN_CONSTRAINT");
+    table_C->AddForeignKey(foreign_key);
+    // Test2: insert 2 tuple, one of which doesn't follow foreign key
+    // constraint's restrict/noaction action
+    // txn0 delete (9) --> success
+    // txn1 delete (2) --> fail
+    // txn0 commit
+    // txn1 commit
+    TransactionScheduler scheduler(2, table_D, &txn_manager);
+    scheduler.Txn(0).Delete(9);
+    scheduler.Txn(1).Delete(2);
+    scheduler.Txn(0).Commit();
+    scheduler.Txn(1).Commit();
+
+    scheduler.Run();
+
+    EXPECT_TRUE(RESULT_SUCCESS == scheduler.schedules[0].txn_result);
+    EXPECT_TRUE(RESULT_ABORTED == scheduler.schedules[1].txn_result);
+  }
+#endif
 
   // this will also indirectly delete all tables in this database
   delete newdb;
 }
-#endif
+
 
 }  // End test namespace
 }  // End peloton namespace
