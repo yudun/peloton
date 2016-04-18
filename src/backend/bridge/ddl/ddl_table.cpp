@@ -357,24 +357,33 @@ bool DDLTable::AddConstraint(Oid relation_oid, Constraint *constraint) {
   return true;
 }
 
-bool DDLTable::DropNotNull(Oid relation_oid, Constraint *constraint){
+bool DDLTable::DropNotNull(Oid relation_oid, __attribute__((unused))Constraint *constraint){
 
   LOG_INFO("=== DROP NOT NULL ===");
   oid_t database_oid = Bridge::GetCurrentDatabaseOid();
   assert(database_oid);
-
   auto &manager = catalog::Manager::GetInstance();
   storage::Database *db = manager.GetDatabaseWithOid(database_oid);
-
   storage::DataTable* targetTable = db->GetTableWithOid(relation_oid);
-
   catalog::Schema* targetSchema = targetTable->GetSchema();
+  LOG_INFO("=== TRIGER SCHEMA DROP. ====");
+  //if( constraint->conname ){}]
+  //LOG_INFO("tmp string = %s",constraint->conname);
+  std::string constrain_name;
 
-  ConstraintType nowConstrain =  PostgresConstraintTypeToPelotonConstraintType(
-          (PostgresConstraintType)constraint->contype);
+  if (constraint->conname != NULL) {
+    constrain_name = std::string(constraint->conname);
+  } else {
+    LOG_INFO("NAME == NULL");
+    constrain_name = "";
+  }  
 
-  LOG_INFO("=== TRIGGER SCHEMA DROP ====");
-  return targetSchema->DropNotNull( catalog::Constraint(nowConstrain,std::string(constraint->conname)) );
+  catalog::Constraint tmp_constraint = catalog::Constraint(CONSTRAINT_TYPE_NOTNULL,
+                                                          constrain_name);
+  LOG_INFO("after construct the constraints");
+  bool status = targetSchema->DropNotNull( tmp_constraint );
+  return status;
+
 }
 
 

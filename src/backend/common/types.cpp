@@ -1154,7 +1154,7 @@ ValueType PostgresValueTypeToPelotonValueType(
 ConstraintType PostgresConstraintTypeToPelotonConstraintType(
     PostgresConstraintType PostgresConstrType) {
   ConstraintType constraintType = CONSTRAINT_TYPE_INVALID;
-
+  LOG_INFO("IN PostgresConstraintTypeToPelotonConstraintType");
   switch (PostgresConstrType) {
     case POSTGRES_CONSTRAINT_NULL:
       constraintType = CONSTRAINT_TYPE_NULL;
@@ -1162,6 +1162,7 @@ ConstraintType PostgresConstraintTypeToPelotonConstraintType(
 
     case POSTGRES_CONSTRAINT_NOTNULL:
       constraintType = CONSTRAINT_TYPE_NOTNULL;
+      LOG_INFO("NOT NULL");
       break;
 
     case POSTGRES_CONSTRAINT_DEFAULT:
