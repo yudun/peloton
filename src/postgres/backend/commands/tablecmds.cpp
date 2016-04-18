@@ -2880,7 +2880,7 @@ AlterTable(Oid relid, LOCKMODE lockmode, AlterTableStmt *stmt)
 	/* Caller is required to provide an adequate lock. */
 	rel = relation_open(relid, NoLock);
 
-	CheckTableNotInUse(rel, "ALTER TABLE");
+	//CheckTableNotInUse(rel, "ALTER TABLE");
 
 	ATController(stmt,
 				 rel, stmt->cmds, interpretInhOption(stmt->relation->inhOpt),

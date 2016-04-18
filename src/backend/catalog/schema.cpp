@@ -15,6 +15,8 @@
 #include <sstream>
 
 #include "backend/catalog/schema.h"
+#include "backend/common/logger.h"
+
 
 namespace peloton {
 namespace catalog {
@@ -255,18 +257,23 @@ bool Schema::operator!=(const Schema &other) const { return !(*this == other); }
 
 bool Schema::DropNotNull(Constraint constraint)  {
 
+  LOG_INFO("Schema::DropNotNull");
   oid_t total_column = GetColumnCount();
   for (oid_t column_itr = 0; column_itr < total_column; column_itr++) {
     std::vector<catalog::Constraint> cons = GetColumn(column_itr).constraints;
-    for(oid_t conid=0; conid<cons.size(); conid++) {
+    std::vector<catalog::Constraint>::iterator itr = cons.begin();
+    LOG_INFO("CHECKING COLUMN %lu", column_itr);
+    for(; itr!=cons.end(); itr++) {
 
-      if( cons[conid].GetType() == constraint.GetType() && cons[conid].GetName() == constraint.GetName()) {
-        cons.erase( cons.begin() + conid );
+      if( itr->GetType() == CONSTRAINT_TYPE_NOTNULL
+            && itr->GetName() == constraint.GetName()) {
+        cons.erase( itr );
         return true;
       }
     }
   }
   return false;
+
 
 }
 
