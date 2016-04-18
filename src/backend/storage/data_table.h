@@ -14,6 +14,7 @@
 
 #include <memory>
 #include <queue>
+#include <backend/expression/abstract_expression.h>
 
 #include "backend/brain/sample.h"
 #include "backend/bridge/ddl/bridge.h"
@@ -152,6 +153,8 @@ class DataTable : public AbstractTable {
 
   void AddForeignKey(catalog::ForeignKey *key);
 
+  void AddCheckPredicate(std::vector<expression::AbstractExpression *> check_predicates);
+
   void AddReferringForeignKey(catalog::ForeignKey *const key);
 
   catalog::ForeignKey *GetRefferedForeignKey(const oid_t &key_offset) const;
@@ -270,6 +273,7 @@ class DataTable : public AbstractTable {
 
   // CONSTRAINTS
   std::vector<catalog::ForeignKey *> foreign_keys_;
+  std::vector<expression::AbstractExpression *> check_predicates_;
   // RECORD WHICH FOREIGN KEYS REFERS THIS TABLE
   std::vector<catalog::ForeignKey *> refered_foreign_keys_;
 

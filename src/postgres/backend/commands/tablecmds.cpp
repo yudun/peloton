@@ -698,10 +698,14 @@ DefineRelation(CreateStmt *stmt, char relkind, Oid ownerId,
 	 * work unless we have a pre-existing relation. So, the transformation has
 	 * to be postponed to this final step of CREATE TABLE.
 	 */
-	if (rawDefaults || stmt->constraints)
-		AddRelationNewConstraints(rel, rawDefaults, stmt->constraints,
-								  true, true, false);
 
+	if (rawDefaults || stmt->constraints) {
+		List *cookedConstraints =
+				AddRelationNewConstraints(rel, rawDefaults, stmt->constraints,
+																	true, true, false);
+		//peloton:: update the constrains
+		stmt->constraints = cookedConstraints;
+	}
 	ObjectAddressSet(address, RelationRelationId, relationId);
 
 	/*

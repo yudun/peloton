@@ -43,6 +43,11 @@ class DDLTable {
 
   static bool ExecDropStmt(Node *parsertree);
 
+  static bool CreateTableCheck(Oid relation_oid, std::string table_name,
+                          std::vector<catalog::Column> column_infos,
+                          catalog::Schema *schema = NULL,
+                          CreateStmt *Cstmt = NULL);
+
   static bool CreateTable(Oid relation_oid, std::string table_name,
                           std::vector<catalog::Column> column_infos,
                           catalog::Schema *schema = NULL);

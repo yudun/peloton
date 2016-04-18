@@ -736,6 +736,10 @@ oid_t DataTable::GetIndexCount() const { return indexes_.size(); }
 // FOREIGN KEYS
 //===--------------------------------------------------------------------===//
 
+void DataTable:: AddCheckPredicate(std::vector<expression::AbstractExpression *> new_predicates){
+  check_predicates_ = new_predicates;
+}
+
 void DataTable::AddForeignKey(catalog::ForeignKey *key) {
   {
     std::lock_guard<std::mutex> lock(tile_group_mutex_);

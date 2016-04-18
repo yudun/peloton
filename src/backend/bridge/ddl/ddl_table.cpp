@@ -27,6 +27,9 @@
 #include "nodes/pg_list.h"
 #include "parser/parse_utilcmd.h"
 
+#include <backend/expression/abstract_expression.h>
+#include <backend/bridge/dml/expr/expr_transformer.h>
+
 namespace peloton {
 namespace bridge {
 
@@ -67,7 +70,8 @@ bool DDLTable::ExecCreateStmt(Node *parsetree,
             if (schema != NULL) {
               DDLUtils::ParsingCreateStmt(Cstmt, column_infos);
 
-              DDLTable::CreateTable(relation_oid, relation_name, column_infos);
+              //DDLTable::CreateTable(relation_oid, relation_name, column_infos);
+              DDLTable::CreateTableCheck(relation_oid, relation_name, column_infos, NULL, Cstmt);
             }
           }
         }
@@ -168,8 +172,16 @@ bool DDLTable::ExecDropStmt(Node *parsetree) {
 bool DDLTable::CreateTable(Oid relation_oid, std::string table_name,
                            std::vector<catalog::Column> column_infos,
                            catalog::Schema *schema) {
+    return DDLTable::CreateTableCheck(relation_oid, table_name, column_infos, schema, NULL);
+}
+
+bool DDLTable::CreateTableCheck(Oid relation_oid, std::string table_name,
+                           std::vector<catalog::Column> column_infos,
+                           catalog::Schema *schema,
+                           CreateStmt *Cstmt) {
   assert(!table_name.empty());
 
+  std::vector<expression::AbstractExpression *> check_predicates;
   Oid database_oid = Bridge::GetCurrentDatabaseOid();
   // if (database_oid == INVALID_OID || relation_oid == INVALID_OID) return
   // false;
@@ -182,7 +194,25 @@ bool DDLTable::CreateTable(Oid relation_oid, std::string table_name,
 
   // Construct our schema from vector of ColumnInfo
   if (schema == NULL) schema = new catalog::Schema(column_infos);
+  // Construct per_table Constrains
 
+  //TODO:Here only check constrain be added
+
+  if(Cstmt != NULL && Cstmt->constraints != NULL){
+    List *newConstraints = Cstmt->constraints;
+    ListCell   *cell;
+
+    foreach(cell, newConstraints) {
+      Constraint *cdef = (Constraint *) lfirst(cell);
+      if (cdef->contype != CONSTR_CHECK)
+        continue;
+
+      expression::AbstractExpression *predicate =
+          ExprTransformer::TransformExpr(reinterpret_cast<ExprState *>(cdef));
+      check_predicates.push_back(predicate);
+    }
+
+  }
   // Build a table from schema
   bool own_schema = true;
   bool adapt_table = true;
@@ -193,6 +223,7 @@ bool DDLTable::CreateTable(Oid relation_oid, std::string table_name,
   if (table != nullptr) {
     LOG_INFO("Created table(%u)%s in database(%u) ", relation_oid,
              table_name.c_str(), database_oid);
+    table->AddCheckPredicate(check_predicates);
 
     db->AddTable(table);
     return true;
