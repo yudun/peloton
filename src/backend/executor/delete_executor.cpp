@@ -10,13 +10,13 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <backend/planner/seq_scan_plan.h>
 #include "backend/executor/delete_executor.h"
 #include "backend/executor/executor_context.h"
 
 #include "backend/common/value.h"
 #include "backend/planner/delete_plan.h"
 #include "backend/catalog/manager.h"
-#include "backend/expression/container_tuple.h"
 #include "backend/common/logger.h"
 #include "backend/executor/logical_tile.h"
 #include "backend/storage/data_table.h"
@@ -26,6 +26,7 @@
 #include "backend/storage/tuple.h"
 #include "backend/concurrency/transaction_manager_factory.h"
 #include "backend/index/index.h"
+#include "executors.h"
 
 namespace peloton {
 namespace executor {
@@ -96,15 +97,17 @@ bool DeleteExecutor::DExecute() {
   for (oid_t i = 0; i < referedFKNum; ++i) {
     auto foreign_key = target_table_->GetRefferedForeignKey(i);
 
+    bool isReferenced = false;
+    oid_t database_oid = bridge::Bridge::GetCurrentDatabaseOid();
+    // get source table
+    auto &manager = catalog::Manager::GetInstance();
+    auto source_table = manager.GetTableWithOid(database_oid, foreign_key->GetSrcTableOid());
+    assert(source_table);
+
+
     switch (foreign_key->GetDeleteAction()) {
       case FOREIGNKEY_ACTION_NOACTION:
       case FOREIGNKEY_ACTION_RESTRICT: {
-        bool isReferenced = false;
-        oid_t database_oid = bridge::Bridge::GetCurrentDatabaseOid();
-        // get source table
-        auto &manager = catalog::Manager::GetInstance();
-        auto source_table = manager.GetTableWithOid(database_oid, foreign_key->GetSrcTableOid());
-        assert(source_table);
         // get the index associated with the referencing keys
         index::Index* fk_index = source_table->GetIndexWithOid(foreign_key->GetSrcIndexOid());
 
@@ -129,6 +132,7 @@ bool DeleteExecutor::DExecute() {
 
           auto &transaction_manager =
               concurrency::TransactionManagerFactory::GetInstance();
+
           // if visible key doesn't exist in the refered column
           bool visible_key_exist = false;
           if (locations.size() > 0) {
@@ -158,7 +162,21 @@ bool DeleteExecutor::DExecute() {
       }
         break;
 
-      case FOREIGNKEY_ACTION_CASCADE:
+      case FOREIGNKEY_ACTION_CASCADE: {
+        for (oid_t visible_tuple_id : *source_tile) {
+          expression::ContainerTuple<LogicalTile> cur_tuple(source_tile.get(),
+                                                            visible_tuple_id);
+
+          // cascading delete associated tuples in the source table
+          bool res = DeleteReferencingTupleOnCascading(source_table, cur_tuple,
+                                            foreign_key->GetFKColumnOffsets());
+
+          if (!res)
+            return false;
+        }
+      }
+        break;
+
       case FOREIGNKEY_ACTION_SETNULL:
       case FOREIGNKEY_ACTION_SETDEFAULT:
         break;
@@ -173,6 +191,7 @@ bool DeleteExecutor::DExecute() {
   for (oid_t visible_tuple_id : *source_tile) {
     oid_t physical_tuple_id = pos_lists[0][visible_tuple_id];
 
+    LOG_INFO("delete tuple in table %s", target_table_->GetName().c_str());
     LOG_TRACE("Visible Tuple id : %lu, Physical Tuple id : %lu ",
               visible_tuple_id, physical_tuple_id);
 
@@ -229,9 +248,49 @@ bool DeleteExecutor::DExecute() {
       transaction_manager.SetTransactionResult(Result::RESULT_FAILURE);
       return false;
     }
+    LOG_INFO("delete single sccessful");
   }
 
+  LOG_INFO("delete sccessful");
   return true;
+}
+
+expression::ComparisonExpression<expression::CmpEq> *DeleteExecutor::MakePredicate(
+    expression::ContainerTuple<LogicalTile> & cur_tuple,
+    std::vector<oid_t > column_offsets) {
+  auto tup_val_exp = new expression::TupleValueExpression(0, column_offsets[0]);
+  auto const_val_exp = new expression::ConstantValueExpression(
+      cur_tuple.GetValue(column_offsets[0]));
+  auto predicate = new expression::ComparisonExpression<expression::CmpEq>(
+      EXPRESSION_TYPE_COMPARE_EQUAL, tup_val_exp, const_val_exp);
+
+  return predicate;
+}
+
+bool DeleteExecutor::DeleteReferencingTupleOnCascading(storage::DataTable* table,
+                                                       expression::ContainerTuple<LogicalTile> & cur_tuple,
+                                                       std::vector<oid_t > column_offsets) {
+
+  LOG_INFO("Cascading delete foreign key offset %lu in table %s", column_offsets[0], table->GetName().c_str());
+
+  // Delete
+  planner::DeletePlan delete_node(table, false);
+  executor::DeleteExecutor delete_executor(&delete_node, executor_context_);
+
+  auto predicate = MakePredicate(cur_tuple, column_offsets);
+
+  // Scan
+  std::unique_ptr<planner::SeqScanPlan> seq_scan_node(
+      new planner::SeqScanPlan(table, predicate, column_offsets));
+  executor::SeqScanExecutor seq_scan_executor(seq_scan_node.get(),
+                                              executor_context_);
+
+  delete_node.AddChild(std::move(seq_scan_node));
+  delete_executor.AddChild(&seq_scan_executor);
+
+  delete_executor.Init();
+
+  return delete_executor.Execute();
 }
 
 }  // namespace executor

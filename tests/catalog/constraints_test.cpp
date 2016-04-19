@@ -27,10 +27,11 @@
 #include "catalog/constraints_tests_util.h"
 #include "concurrency/transaction_tests_util.h"
 
-#define NOTNULL_TEST
-#define PRIMARY_UNIQUEKEY_TEST
-#define FOREIGHN_KEY_INSERT_TEST
-#define FOREIGHN_KEY_DELETE_TEST
+//#define NOTNULL_TEST
+//#define PRIMARY_UNIQUEKEY_TEST
+//#define FOREIGHN_KEY_INSERT_TEST
+#define FOREIGHN_KEY_RESTRICT_DELETE_TEST
+#define FOREIGHN_KEY_CASCADE_DELETE_TEST
 
 namespace peloton {
 namespace test {
@@ -258,14 +259,14 @@ TEST_F(ConstraintsTests, ForeignKeyTest) {
   }
 #endif
 
-#ifdef FOREIGHN_KEY_DELETE_TEST
+#ifdef FOREIGHN_KEY_RESTRICT_DELETE_TEST
   {
     auto table_C =
         TransactionTestsUtil::CreateTable(3, "tableC", 0, 2000, 2000, true);
     auto table_D =
         TransactionTestsUtil::CreateTable(10, "tableD", 0, 2001, 2001, true);
 
-    // add the foreign key constraints for table_A
+    // add the foreign key constraints for table_C
     auto foreign_key = new catalog::ForeignKey(
         2000, 2001,
         table_D->GetIndexIdWithColumnOffsets({0}),
@@ -275,20 +276,81 @@ TEST_F(ConstraintsTests, ForeignKeyTest) {
     table_C->AddForeignKey(foreign_key);
     // Test2: insert 2 tuple, one of which doesn't follow foreign key
     // constraint's restrict/noaction action
-    // txn0 delete (9) --> success
-    // txn1 delete (2) --> fail
+    // txn0 delete (9, tableD) --> success
+    // txn1 delete (2, tableD) --> fail
     // txn0 commit
     // txn1 commit
-    TransactionScheduler scheduler(2, table_D, &txn_manager);
-    scheduler.Txn(0).Delete(9);
-    scheduler.Txn(1).Delete(2);
+    // txn2 read (2, tableC) --> still can read 0
+    // txn2 read (2, tableD) --> still can read 0
+    // txn2 read (9, tableD) --> can't read 9
+    // txn2 commit
+    TransactionScheduler scheduler(3, table_D, &txn_manager);
+    scheduler.Txn(0).Delete(9, table_D);
+    scheduler.Txn(1).Delete(2, table_D);
     scheduler.Txn(0).Commit();
     scheduler.Txn(1).Commit();
+
+    scheduler.Txn(2).Read(2, table_C);
+    scheduler.Txn(2).Read(2, table_D);
+    scheduler.Txn(2).Read(9, table_D);
+    scheduler.Txn(2).Commit();
 
     scheduler.Run();
 
     EXPECT_TRUE(RESULT_SUCCESS == scheduler.schedules[0].txn_result);
     EXPECT_TRUE(RESULT_ABORTED == scheduler.schedules[1].txn_result);
+    EXPECT_TRUE(RESULT_SUCCESS == scheduler.schedules[2].txn_result);
+    EXPECT_EQ(0, scheduler.schedules[2].results[0]);
+    EXPECT_EQ(0, scheduler.schedules[2].results[1]);
+    EXPECT_EQ(-1, scheduler.schedules[2].results[2]);
+  }
+#endif
+
+#ifdef FOREIGHN_KEY_CASCADE_DELETE_TEST
+  {
+    auto table_E =
+        TransactionTestsUtil::CreateTable(3, "tableE", 0, 3000, 3000, true);
+    auto table_F =
+        TransactionTestsUtil::CreateTable(10, "tableF", 0, 3001, 3001, true);
+
+    // add the foreign key constraints for table_E
+    auto foreign_key = new catalog::ForeignKey(
+        3000, 3001,
+        table_F->GetIndexIdWithColumnOffsets({0}),
+        table_E->GetIndexIdWithColumnOffsets({0}),
+        {"id"}, {0}, {"id"}, {0}, FOREIGNKEY_ACTION_NOACTION,
+        FOREIGNKEY_ACTION_CASCADE, "THIS_IS_FOREIGN_CONSTRAINT");
+    table_E->AddForeignKey(foreign_key);
+    // Test2: insert 2 tuple, one of which doesn't follow foreign key
+    // constraint's restrict/noaction action
+    // txn1 read (1, tableE)
+    // txn1 read (1, tableF)
+    // txn0 delete (1, tableF) --> cascade delete, 1 in tableE will also be deleted
+    // txn0 commit
+    // txn1 commit
+    // txn2 read (1, tableE) --> empty
+    // txn2 read (1, tableF) --> empty
+    // txn2 commit
+    TransactionScheduler scheduler(3, table_F, &txn_manager);
+    scheduler.Txn(1).Read(1, table_E);
+    scheduler.Txn(1).Read(1, table_F);
+    scheduler.Txn(0).Delete(1, table_F);
+    scheduler.Txn(0).Commit();
+    scheduler.Txn(1).Commit();
+
+    scheduler.Txn(2).Read(1, table_E);
+    scheduler.Txn(2).Read(1, table_F);
+    scheduler.Txn(2).Commit();
+
+    scheduler.Run();
+
+    EXPECT_TRUE(RESULT_SUCCESS == scheduler.schedules[0].txn_result);
+    EXPECT_TRUE(RESULT_SUCCESS == scheduler.schedules[1].txn_result);
+    EXPECT_TRUE(RESULT_SUCCESS == scheduler.schedules[2].txn_result);
+    EXPECT_EQ(0, scheduler.schedules[1].results[0]);
+    EXPECT_EQ(0, scheduler.schedules[1].results[1]);
+    EXPECT_EQ(-1, scheduler.schedules[2].results[0]);
+    EXPECT_EQ(-1, scheduler.schedules[2].results[1]);
   }
 #endif
 
