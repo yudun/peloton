@@ -257,19 +257,17 @@ bool Schema::operator!=(const Schema &other) const { return !(*this == other); }
 
 bool Schema::DropNotNull(Constraint constraint)  {
 
-  LOG_INFO("Schema::DropNotNull");
   oid_t total_column = GetColumnCount();
   for (oid_t column_itr = 0; column_itr < total_column; column_itr++) {
-    std::vector<catalog::Constraint> cons = GetColumn(column_itr).constraints;
+    std::vector<catalog::Constraint>& cons = columns[column_itr].constraints;
     std::vector<catalog::Constraint>::iterator itr = cons.begin();
-    LOG_INFO("CHECKING COLUMN %lu", column_itr);
-    for(; itr!=cons.end(); itr++) {
-
-      if( itr->GetType() == CONSTRAINT_TYPE_NOTNULL
-            && itr->GetName() == constraint.GetName()) {
-        cons.erase( itr );
-        return true;
-      }
+    if( GetColumn(column_itr).column_name.compare(constraint.GetName())== 0 ){
+    	for(; itr!=cons.end(); itr++) {
+      		if( itr->GetType() == constraint.GetType() ) {
+        		cons.erase( itr );
+        		return true;
+      		}
+    	}
     }
   }
   return false;

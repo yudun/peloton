@@ -227,7 +227,7 @@ bool DDLTable::AlterTable(Oid relation_oid, AlterTableStmt *Astmt) {
       case AT_DropNotNull:
       {
           LOG_INFO("ALTER TABLE === DROP NOT NULL ");
-          bool status = DropNotNull(relation_oid, (Constraint *)cmd->def);
+          bool status = DropNotNull(relation_oid, cmd->name);
           if (status == false) {
              LOG_WARN("Failed to add constraint");
           }
@@ -357,7 +357,7 @@ bool DDLTable::AddConstraint(Oid relation_oid, Constraint *constraint) {
   return true;
 }
 
-bool DDLTable::DropNotNull(Oid relation_oid, __attribute__((unused))Constraint *constraint){
+bool DDLTable::DropNotNull(Oid relation_oid, __attribute__((unused))char *conname){
 
   LOG_INFO("=== DROP NOT NULL ===");
   oid_t database_oid = Bridge::GetCurrentDatabaseOid();
@@ -366,21 +366,15 @@ bool DDLTable::DropNotNull(Oid relation_oid, __attribute__((unused))Constraint *
   storage::Database *db = manager.GetDatabaseWithOid(database_oid);
   storage::DataTable* targetTable = db->GetTableWithOid(relation_oid);
   catalog::Schema* targetSchema = targetTable->GetSchema();
-  LOG_INFO("=== TRIGER SCHEMA DROP. ====");
-  //if( constraint->conname ){}]
-  //LOG_INFO("tmp string = %s",constraint->conname);
-  std::string constrain_name;
-
-  if (constraint->conname != NULL) {
-    constrain_name = std::string(constraint->conname);
+  
+  std::string column_name;
+  if (conname != NULL) {
+    column_name = std::string(conname);
   } else {
-    LOG_INFO("NAME == NULL");
-    constrain_name = "";
+    LOG_WARN("NAME == NULL");
+    column_name = "";
   }  
-
-  catalog::Constraint tmp_constraint = catalog::Constraint(CONSTRAINT_TYPE_NOTNULL,
-                                                          constrain_name);
-  LOG_INFO("after construct the constraints");
+  catalog::Constraint tmp_constraint = catalog::Constraint(CONSTRAINT_TYPE_NOTNULL,column_name);
   bool status = targetSchema->DropNotNull( tmp_constraint );
   return status;
 

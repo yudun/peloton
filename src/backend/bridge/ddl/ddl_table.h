@@ -56,7 +56,7 @@ class DDLTable {
                                  oid_t relation_oid);
 
  private:
-  static bool DropNotNull(Oid relation_oid, Constraint *constraint);
+  static bool DropNotNull(Oid relation_oid, char *connname);
   static bool AddConstraint(Oid relation_oid, Constraint *constraint);
 };
 
