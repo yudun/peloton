@@ -236,7 +236,12 @@ bool DDLTable::AlterTable(Oid relation_oid, AlterTableStmt *Astmt) {
       case AT_DropConstraint:
       {
         LOG_INFO("ALTER TABLE === DROP CONSTRAINT ");
-        //bool status = DropConstraint(relation_oid, (Constraint *)cmd->def);
+        
+        if(cmd->def != NULL){
+          Constraint* constraint = (Constraint*)cmd->def;  
+          LOG_INFO("(Constraint *)cmd->def != NULL, type = %d",
+                   constraint->contype);
+        }
         break;
       }
 
