@@ -48,6 +48,24 @@ class TransactionManager {
       const storage::TileGroupHeader *const tile_group_header,
       const oid_t &tuple_id) = 0;
 
+  bool VisibleTupleExist(std::vector<ItemPointer> & locations){
+    bool visible_tuple_exist = false;
+
+    if (locations.size() > 0) {
+      for(unsigned long i = 0; i < locations.size(); i++) {
+        auto tile_group_header = catalog::Manager::GetInstance()
+            .GetTileGroup(locations[i].block)->GetHeader();
+        auto tuple_id = locations[i].offset;
+        if (this->IsVisible(tile_group_header, tuple_id)) {
+          visible_tuple_exist = true;
+          break;
+        }
+      }
+    }
+
+    return visible_tuple_exist;
+  }
+
   bool IsVisbleOrDirty(__attribute__((unused)) const storage::Tuple *key,
                        const ItemPointer &position) {
     auto tile_group_header = catalog::Manager::GetInstance()
