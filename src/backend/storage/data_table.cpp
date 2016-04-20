@@ -169,18 +169,6 @@ ItemPointer DataTable::InsertEmptyVersion(const storage::Tuple *tuple) {
     return INVALID_ITEMPOINTER;
   }
 
-  // Index checks and updates
-  if (InsertInSecondaryIndexes(tuple, location) == false) {
-    LOG_WARN("Index constraint violated");
-    return INVALID_ITEMPOINTER;
-  }
-
-  // ForeignKey checks
-  if (CheckForeignKeyConstraints(tuple) == false) {
-    LOG_WARN("ForeignKey constraint violated: inserted value doesn't appear in refered table");
-    return INVALID_ITEMPOINTER;
-  }
-
   LOG_TRACE("Location: %lu, %lu", location.block, location.offset);
 
   IncreaseNumberOfTuplesBy(1);
@@ -383,6 +371,13 @@ bool DataTable::CheckForeignKeyConstraints(const storage::Tuple *tuple) {
         std::unique_ptr<storage::Tuple> key(new storage::Tuple(foreign_key_schema.get(), true));
         //FIXME: what is the 3rd arg should be?
         key->SetFromTuple(tuple, key_attrs, index->GetPool());
+
+        // if every column in key is null, we skip the foreign key insert check for it
+        // because it may be a result of insert version
+        if (key->IsEveryColumnNull()) {
+          LOG_INFO("EVERY COLUMN IN KEY IS NULL!");
+          break;
+        }
 
         LOG_INFO("check key: %s", key->GetInfo().c_str());
         auto locations = index->ScanKey(key.get());
