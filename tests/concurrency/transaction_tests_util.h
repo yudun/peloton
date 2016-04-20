@@ -122,7 +122,9 @@ class TransactionTestsUtil {
                                          oid_t database_id = INVALID_OID,
                                          oid_t relation_id = INVALID_OID,
                                          oid_t index_oid = 1234,
-                                         bool need_primary_index = false);
+                                         bool need_primary_index = false,
+                                         bool need_secondary_index = false,
+                                         oid_t secondary_index_oid = 1235);
   // Create the same table as CreateTable with primary key constrainst on id and
   // unique key constraints on value
   static storage::DataTable *CreatePrimaryKeyUniqueKeyTable();
