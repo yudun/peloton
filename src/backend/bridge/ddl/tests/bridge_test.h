@@ -110,7 +110,8 @@ class BridgeTest {
                               oid_t pktable_oid, std::string constraint_name,
                               unsigned int pk_column_names_count,
                               unsigned int fk_column_names_count,
-                              char fk_update_action, char fk_delete_action);
+                              ForeignKeyActionType fk_update_action,
+                              ForeignKeyActionType fk_delete_action);
 
   static void CreateSamplePrimaryKeyIndex(std::string table_name,
                                           oid_t index_oid);

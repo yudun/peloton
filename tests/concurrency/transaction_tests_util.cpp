@@ -136,7 +136,14 @@ storage::DataTable *TransactionTestsUtil::CreatePrimaryKeyUniqueKeyTable() {
   return table;
 }
 
-storage::DataTable *TransactionTestsUtil::CreateTable(int num_key) {
+storage::DataTable *TransactionTestsUtil::CreateTable(int num_key,
+                                                      std::string table_name,
+                                                      oid_t database_id,
+                                                      oid_t relation_id,
+                                                      oid_t index_oid,
+                                                      bool need_primary_index,
+                                                      bool need_secondary_index,
+                                                      oid_t secondary_index_oid) {
   auto id_column = catalog::Column(VALUE_TYPE_INTEGER,
                                    GetTypeSize(VALUE_TYPE_INTEGER), "id", true);
   auto value_column = catalog::Column(
@@ -145,10 +152,10 @@ storage::DataTable *TransactionTestsUtil::CreateTable(int num_key) {
   // Create the table
   catalog::Schema *table_schema =
       new catalog::Schema({id_column, value_column});
-  auto table_name = "TEST_TABLE";
+
   size_t tuples_per_tilegroup = 100;
   auto table = storage::TableFactory::GetDataTable(
-      INVALID_OID, INVALID_OID, table_schema, table_name, tuples_per_tilegroup,
+      database_id, relation_id, table_schema, table_name, tuples_per_tilegroup,
       true, false);
 
   // Create index on the id column
@@ -159,12 +166,37 @@ storage::DataTable *TransactionTestsUtil::CreateTable(int num_key) {
   key_schema->SetIndexedColumns(key_attrs);
 
   auto index_metadata = new index::IndexMetadata(
-      "primary_btree_index", 1234, INDEX_TYPE_BTREE,
-      INDEX_CONSTRAINT_TYPE_DEFAULT, tuple_schema, key_schema, unique);
+      "primary_btree_index", index_oid, INDEX_TYPE_BTREE,
+      need_primary_index ? INDEX_CONSTRAINT_TYPE_PRIMARY_KEY : INDEX_CONSTRAINT_TYPE_DEFAULT,
+      tuple_schema, key_schema, unique);
 
   index::Index *pkey_index = index::IndexFactory::GetInstance(index_metadata);
 
   table->AddIndex(pkey_index);
+
+  if (need_secondary_index) {
+    std::vector<oid_t> key_attrs = {1};
+    auto tuple_schema = table->GetSchema();
+    bool unique = false;
+    auto key_schema = catalog::Schema::CopySchema(tuple_schema, key_attrs);
+    key_schema->SetIndexedColumns(key_attrs);
+
+    auto index_metadata = new index::IndexMetadata(
+        "secondary_btree_index", secondary_index_oid, INDEX_TYPE_BTREE,
+        INDEX_CONSTRAINT_TYPE_DEFAULT,
+        tuple_schema, key_schema, unique);
+
+    index::Index *sec_key_index = index::IndexFactory::GetInstance(index_metadata);
+
+    table->AddIndex(sec_key_index);
+  }
+
+  // add this table to current database
+  auto &manager = catalog::Manager::GetInstance();
+  storage::Database *db = manager.GetDatabaseWithOid(database_id);
+  if (db != nullptr) {
+    db->AddTable(table);
+  }
 
   // Insert tuple
   auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
@@ -177,8 +209,8 @@ storage::DataTable *TransactionTestsUtil::CreateTable(int num_key) {
   return table;
 }
 
-planner::ProjectInfo *TransactionTestsUtil::MakeProjectInfoFromTuple(
-    const storage::Tuple *tuple) {
+std::unique_ptr<const planner::ProjectInfo>
+TransactionTestsUtil::MakeProjectInfoFromTuple(const storage::Tuple *tuple) {
   planner::ProjectInfo::TargetList target_list;
   planner::ProjectInfo::DirectMapList direct_map_list;
 
@@ -188,8 +220,8 @@ planner::ProjectInfo *TransactionTestsUtil::MakeProjectInfoFromTuple(
     target_list.emplace_back(col_id, expression);
   }
 
-  return new planner::ProjectInfo(std::move(target_list),
-                                  std::move(direct_map_list));
+  return std::unique_ptr<const planner::ProjectInfo>(new planner::ProjectInfo(
+      std::move(target_list), std::move(direct_map_list)));
 }
 
 bool TransactionTestsUtil::ExecuteInsert(concurrency::Transaction *transaction,
@@ -204,10 +236,11 @@ bool TransactionTestsUtil::ExecuteInsert(concurrency::Transaction *transaction,
   auto testing_pool = TestingHarness::GetInstance().GetTestingPool();
   tuple->SetValue(0, ValueFactory::GetIntegerValue(id), testing_pool);
   tuple->SetValue(1, ValueFactory::GetIntegerValue(value), testing_pool);
-  auto project_info = MakeProjectInfoFromTuple(tuple.get());
+  std::unique_ptr<const planner::ProjectInfo> project_info{
+      MakeProjectInfoFromTuple(tuple.get())};
 
   // Insert
-  planner::InsertPlan node(table, project_info);
+  planner::InsertPlan node(table, std::move(project_info));
   executor::InsertExecutor executor(&node, context.get());
   return executor.Execute();
 }
@@ -251,7 +284,11 @@ bool TransactionTestsUtil::ExecuteRead(concurrency::Transaction *transaction,
     result = -1;
   else {
     EXPECT_EQ(1, result_tile->GetTupleCount());
-    result = result_tile->GetValue(0, 1).GetIntegerForTestsOnly();
+    Value raw_result = result_tile->GetValue(0, 1);
+    if (raw_result.IsNull())
+      result = INT32_NULL;
+    else
+      result = raw_result.GetIntegerForTestsOnly();
   }
 
   return true;
@@ -269,10 +306,12 @@ bool TransactionTestsUtil::ExecuteDelete(concurrency::Transaction *transaction,
 
   // Scan
   std::vector<oid_t> column_ids = {0};
-  planner::SeqScanPlan seq_scan_node(table, predicate, column_ids);
-  executor::SeqScanExecutor seq_scan_executor(&seq_scan_node, context.get());
+  std::unique_ptr<planner::SeqScanPlan> seq_scan_node(
+      new planner::SeqScanPlan(table, predicate, column_ids));
+  executor::SeqScanExecutor seq_scan_executor(seq_scan_node.get(),
+                                              context.get());
 
-  delete_node.AddChild(&seq_scan_node);
+  delete_node.AddChild(std::move(seq_scan_node));
   delete_executor.AddChild(&seq_scan_executor);
 
   EXPECT_TRUE(delete_executor.Init());
@@ -295,9 +334,10 @@ bool TransactionTestsUtil::ExecuteUpdate(concurrency::Transaction *transaction,
   direct_map_list.emplace_back(0, std::pair<oid_t, oid_t>(0, 0));
 
   // Update plan
-  planner::UpdatePlan update_node(
-      table, new planner::ProjectInfo(std::move(target_list),
-                                      std::move(direct_map_list)));
+  std::unique_ptr<const planner::ProjectInfo> project_info(
+      new planner::ProjectInfo(std::move(target_list),
+                               std::move(direct_map_list)));
+  planner::UpdatePlan update_node(table, std::move(project_info));
 
   executor::UpdateExecutor update_executor(&update_node, context.get());
 
@@ -306,10 +346,12 @@ bool TransactionTestsUtil::ExecuteUpdate(concurrency::Transaction *transaction,
 
   // Seq scan
   std::vector<oid_t> column_ids = {0};
-  planner::SeqScanPlan seq_scan_node(table, predicate, column_ids);
-  executor::SeqScanExecutor seq_scan_executor(&seq_scan_node, context.get());
+  std::unique_ptr<planner::SeqScanPlan> seq_scan_node(
+      new planner::SeqScanPlan(table, predicate, column_ids));
+  executor::SeqScanExecutor seq_scan_executor(seq_scan_node.get(),
+                                              context.get());
 
-  update_node.AddChild(&seq_scan_node);
+  update_node.AddChild(std::move(seq_scan_node));
   update_executor.AddChild(&seq_scan_executor);
 
   EXPECT_TRUE(update_executor.Init());
@@ -317,7 +359,9 @@ bool TransactionTestsUtil::ExecuteUpdate(concurrency::Transaction *transaction,
 }
 
 bool TransactionTestsUtil::ExecuteUpdateByValue(concurrency::Transaction *txn,
-                                storage::DataTable *table, int old_value, int new_value) {
+                                                storage::DataTable *table,
+                                                int old_value,
+                                                int new_value) {
   std::unique_ptr<executor::ExecutorContext> context(
       new executor::ExecutorContext(txn));
 
@@ -331,9 +375,10 @@ bool TransactionTestsUtil::ExecuteUpdateByValue(concurrency::Transaction *txn,
   direct_map_list.emplace_back(0, std::pair<oid_t, oid_t>(0, 0));
 
   // Update plan
-  planner::UpdatePlan update_node(
-      table, new planner::ProjectInfo(std::move(target_list),
-                                      std::move(direct_map_list)));
+  std::unique_ptr<const planner::ProjectInfo> project_info(
+      new planner::ProjectInfo(std::move(target_list),
+                               std::move(direct_map_list)));
+  planner::UpdatePlan update_node(table, std::move(project_info));
 
   executor::UpdateExecutor update_executor(&update_node, context.get());
 
@@ -346,10 +391,12 @@ bool TransactionTestsUtil::ExecuteUpdateByValue(concurrency::Transaction *txn,
 
   // Seq scan
   std::vector<oid_t> column_ids = {0, 1};
-  planner::SeqScanPlan seq_scan_node(table, predicate, column_ids);
-  executor::SeqScanExecutor seq_scan_executor(&seq_scan_node, context.get());
+  std::unique_ptr<planner::SeqScanPlan> seq_scan_node(
+      new planner::SeqScanPlan(table, predicate, column_ids));
+  executor::SeqScanExecutor seq_scan_executor(seq_scan_node.get(),
+                                              context.get());
 
-  update_node.AddChild(&seq_scan_node);
+  update_node.AddChild(std::move(seq_scan_node));
   update_executor.AddChild(&seq_scan_executor);
 
   EXPECT_TRUE(update_executor.Init());

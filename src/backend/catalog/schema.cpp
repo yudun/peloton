@@ -15,6 +15,8 @@
 #include <sstream>
 
 #include "backend/catalog/schema.h"
+#include "backend/common/logger.h"
+
 
 namespace peloton {
 namespace catalog {
@@ -82,6 +84,41 @@ Schema::Schema(const std::vector<Column> &columns)
 }
 
 // Copy schema
+std::shared_ptr<const Schema> Schema::CopySchema(
+    const std::shared_ptr<const Schema> &schema) {
+  oid_t column_count = schema->GetColumnCount();
+  std::vector<oid_t> set;
+
+  for (oid_t column_itr = 0; column_itr < column_count; column_itr++)
+    set.push_back(column_itr);
+
+  return CopySchema(schema, set);
+}
+
+// Copy subset of columns in the given schema
+std::shared_ptr<const Schema> Schema::CopySchema(
+    const std::shared_ptr<const Schema> &schema,
+    const std::vector<oid_t> &set) {
+  oid_t column_count = schema->GetColumnCount();
+  std::vector<Column> columns;
+  std::vector<oid_t> indexed_columns;
+
+  for (oid_t column_itr = 0; column_itr < column_count; column_itr++) {
+    // If column exists in set
+    if (std::find(set.begin(), set.end(), column_itr) != set.end()) {
+      columns.push_back(schema->columns[column_itr]);
+      indexed_columns.push_back(column_itr);
+    }
+  }
+
+  auto res = std::shared_ptr<Schema>(new Schema(columns));
+  res->SetIndexedColumns(indexed_columns);
+
+  return res;
+}
+
+// Backward compatible for raw pointers
+// Copy schema
 Schema *Schema::CopySchema(const Schema *schema) {
   oid_t column_count = schema->GetColumnCount();
   std::vector<oid_t> set;
@@ -97,15 +134,19 @@ Schema *Schema::CopySchema(const Schema *schema,
                            const std::vector<oid_t> &set) {
   oid_t column_count = schema->GetColumnCount();
   std::vector<Column> columns;
+  std::vector<oid_t> indexed_columns;
 
   for (oid_t column_itr = 0; column_itr < column_count; column_itr++) {
     // If column exists in set
     if (std::find(set.begin(), set.end(), column_itr) != set.end()) {
       columns.push_back(schema->columns[column_itr]);
+      indexed_columns.push_back(column_itr);
     }
   }
 
   Schema *ret_schema = new Schema(columns);
+  ret_schema->SetIndexedColumns(indexed_columns);
+
   return ret_schema;
 }
 
@@ -212,6 +253,31 @@ bool Schema::operator==(const Schema &other) const {
 }
 
 bool Schema::operator!=(const Schema &other) const { return !(*this == other); }
+
+
+bool Schema::DropNotNull(Constraint constraint)  {
+
+  LOG_INFO("Schema::DropNotNull");
+  oid_t total_column = GetColumnCount();
+  for (oid_t column_itr = 0; column_itr < total_column; column_itr++) {
+    std::vector<catalog::Constraint> cons = GetColumn(column_itr).constraints;
+    std::vector<catalog::Constraint>::iterator itr = cons.begin();
+    LOG_INFO("CHECKING COLUMN %lu", column_itr);
+    for(; itr!=cons.end(); itr++) {
+
+      if( itr->GetType() == CONSTRAINT_TYPE_NOTNULL
+            && itr->GetName() == constraint.GetName()) {
+        cons.erase( itr );
+        return true;
+      }
+    }
+  }
+  return false;
+
+
+}
+
+
 
 }  // End catalog namespace
 }  // End peloton namespace

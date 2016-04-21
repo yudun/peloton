@@ -148,7 +148,8 @@ bool BridgeTest::CheckForeignKey(catalog::ForeignKey *foreign_key,
                                  oid_t pktable_oid, std::string constraint_name,
                                  unsigned int pk_column_names_count,
                                  unsigned int fk_column_names_count,
-                                 char fk_update_action, char fk_delete_action) {
+                                 ForeignKeyActionType fk_update_action,
+                                 ForeignKeyActionType fk_delete_action) {
   if (foreign_key->GetSinkTableOid() != pktable_oid) return false;
 
   if (strcmp((foreign_key->GetConstraintName()).c_str(),
@@ -231,8 +232,10 @@ void BridgeTest::CreateSampleForeignKey(oid_t pktable_oid,
   fk_column_names.push_back("salary");
   std::vector<catalog::ForeignKey> foreign_keys;
   catalog::ForeignKey *foreign_key =
-      new catalog::ForeignKey(pktable_oid, pk_column_names, fk_column_names,
-                              'r', 'c', "THIS_IS_FOREIGN_CONSTRAINT");
+      new catalog::ForeignKey(table_oid, pktable_oid, INVALID_OID, INVALID_OID,
+                              pk_column_names, {1}, fk_column_names, {3},
+                              FOREIGNKEY_ACTION_RESTRICT, FOREIGNKEY_ACTION_CASCADE,
+                              "THIS_IS_FOREIGN_CONSTRAINT");
   foreign_keys.push_back(*foreign_key);
 
   // Current table ----> reference table
