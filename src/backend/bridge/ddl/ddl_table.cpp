@@ -22,11 +22,13 @@
 #include "backend/common/logger.h"
 #include "backend/storage/table_factory.h"
 #include "backend/storage/database.h"
+#include "backend/planner/seq_scan_plan.h"
+#include "backend/executor/executors.h"
+#include "backend/concurrency/transaction_manager_factory.h"
 
 #include "commands/dbcommands.h"
 #include "nodes/pg_list.h"
 #include "parser/parse_utilcmd.h"
-
 namespace peloton {
 namespace bridge {
 
@@ -233,6 +235,14 @@ bool DDLTable::AlterTable(Oid relation_oid, AlterTableStmt *Astmt) {
           }
           break;
       }
+       case AT_SetNotNull:{
+          LOG_INFO("ALTER TABLE === SET NOT NULL ");
+          bool status = DDLTable::SetNotNull(relation_oid, cmd->name);
+	  if (status == false) {
+          LOG_WARN("Failed to add constraint");
+          }
+          break;
+      }
       case AT_DropConstraint:
       {
         LOG_INFO("ALTER TABLE === DROP CONSTRAINT ");
@@ -383,6 +393,68 @@ bool DDLTable::DropNotNull(Oid relation_oid, __attribute__((unused))char *connam
   bool status = targetSchema->DropNotNull( tmp_constraint );
   return status;
 
+}
+
+bool DDLTable::SetNotNull(Oid relation_oid, char* conname){
+   
+    LOG_INFO("=== SET NOT NULL ===");
+    oid_t database_oid = Bridge::GetCurrentDatabaseOid();
+    assert(database_oid);
+    auto &manager = catalog::Manager::GetInstance();
+    storage::Database *db = manager.GetDatabaseWithOid(database_oid);
+    storage::DataTable* targetTable = db->GetTableWithOid(relation_oid);
+
+    std::string constrain_name;
+    if (conname != NULL) {
+      constrain_name = std::string(conname);
+    } else {
+      LOG_INFO("NAME == NULL");
+      constrain_name = "";
+    }
+
+   return DDLTable::CheckNullExist(targetTable, constrain_name);
+}
+
+bool DDLTable::CheckNullExist( storage::DataTable* targetTable, std::string column_name ){
+
+    LOG_INFO("=== CHECK NULL EXIST FOR %s ===", column_name.c_str() );
+
+  // prepare for seq scan
+  catalog::Schema* targetSchema = targetTable->GetSchema();
+  std::vector<oid_t> column_ids;
+  oid_t column_count = targetSchema->GetColumnCount();
+  for (oid_t column_itr = 0; column_itr < column_count; column_itr++){
+    std:: string current_name = targetSchema->GetColumn(column_itr).column_name;
+    if( current_name.compare(column_name)==0 ){
+      column_ids.push_back(column_itr);
+      break;
+    }
+  }
+
+  planner::SeqScanPlan seq_scan_node(targetTable, nullptr, column_ids);
+  auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
+  auto txn = txn_manager.BeginTransaction();
+  std::unique_ptr<executor::ExecutorContext> context(
+          new executor::ExecutorContext(txn));
+
+  executor::SeqScanExecutor executor(&seq_scan_node, context.get());
+  if(executor.Init() == false){
+    LOG_WARN("ERROR INIT EXECUTOR");
+  }
+
+  std::vector<std::unique_ptr<executor::LogicalTile>> result_tiles;
+  while ( executor.Execute() ) {
+    result_tiles.emplace_back( executor.GetOutput());
+  }
+
+  auto result_iter = result_tiles.begin();
+  for( ; result_iter != result_tiles.end(); result_iter++){
+    size_t source_tile_tuple_count = (*result_iter)->GetTupleCount();
+    size_t source_tile_column_count = (*result_iter)->GetColumnCount();
+    LOG_INFO("tuple_count = %lu, column_count = %lu",source_tile_tuple_count,source_tile_column_count);
+
+  }
+  return false;
 }
 
 

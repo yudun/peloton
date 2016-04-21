@@ -15,6 +15,7 @@
 #include "backend/catalog/schema.h"
 #include "backend/catalog/foreign_key.h"
 #include "backend/bridge/ddl/ddl_index.h"
+#include "backend/storage/data_table.h"
 
 #include "postgres.h"
 #include "c.h"
@@ -57,6 +58,8 @@ class DDLTable {
 
  private:
   static bool DropNotNull(Oid relation_oid, char *connname);
+  static bool SetNotNull(Oid relation_oid, char *conname);
+  static bool CheckNullExist(storage::DataTable* targetTable, std::string column_name);
   static bool AddConstraint(Oid relation_oid, Constraint *constraint);
 };
 
