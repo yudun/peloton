@@ -154,6 +154,7 @@ class TileGroup : public Printable {
 
   double GetSchemaDifference(const storage::column_map_type &new_column_map);
 
+  uint64_t GetMemoryFootprint() const;
   // Sync the contents
   void Sync();
 

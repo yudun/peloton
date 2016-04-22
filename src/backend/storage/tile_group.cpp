@@ -82,6 +82,14 @@ oid_t TileGroup::GetActiveTupleCount() const {
   return tile_group_header->GetActiveTupleCount();
 }
 
+uint64_t TileGroup::GetMemoryFootprint() const {
+  uint64_t count = 0;
+  for (auto tile : tiles) {
+    count += tile -> GetSize();
+  }
+  return count;
+}
+
 //===--------------------------------------------------------------------===//
 // Operations
 //===--------------------------------------------------------------------===//
