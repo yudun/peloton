@@ -14,7 +14,7 @@
 
 #include "backend/common/thread_manager.h"
 #include "postmaster/peloton.h"
-#include "backend/gc/gc_manager.h"
+#include "backend/gc/gc_manager_factory.h"
 #include "backend/common/logger.h"
 
 #define NUM_THREAD 10
@@ -101,8 +101,7 @@ void ThreadManager::Invoke() {
     task();
     if(peloton_gc_mode == GC_TYPE_COOPERATIVE) {
       // after task check if GC needs to be done.
-      auto &gc_manager = gc::GCManager::GetInstance();
-      gc_manager.PerformGC();
+      gc::GCManagerFactory::GetInstance().PerformGC();
     }
 
   }  // end while

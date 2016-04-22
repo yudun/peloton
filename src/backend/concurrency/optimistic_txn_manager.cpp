@@ -23,8 +23,6 @@
 namespace peloton {
 namespace concurrency {
 
-//static uint64_t num_deletes = 0;
-
 OptimisticTxnManager &OptimisticTxnManager::GetInstance() {
   static OptimisticTxnManager txn_manager;
   return txn_manager;
@@ -114,7 +112,7 @@ bool OptimisticTxnManager::AcquireOwnership(
   auto txn_id = current_txn->GetTransactionId();
 
   if (tile_group_header->SetAtomicTransactionId(tuple_id, txn_id) == false) {
-    LOG_INFO("Fail to acquire tuple. Set txn failure.");
+    LOG_ERROR("Fail to acquire tuple. Set txn failure.");
     SetTransactionResult(Result::RESULT_FAILURE);
     return false;
   }
@@ -209,8 +207,6 @@ void OptimisticTxnManager::PerformUpdate(const oid_t &tile_group_id,
 bool OptimisticTxnManager::PerformDelete(const oid_t &tile_group_id,
                                          const oid_t &tuple_id,
                                          const ItemPointer &new_location) {
-  //LOG_INFO("num_deletes = %lu", ++num_deletes);
-  //RecycleTupleSlot(tile_group_id, tuple_id);
   auto transaction_id = current_txn->GetTransactionId();
 
   auto tile_group_header =
@@ -242,8 +238,6 @@ bool OptimisticTxnManager::PerformDelete(const oid_t &tile_group_id,
 
 void OptimisticTxnManager::PerformDelete(const oid_t &tile_group_id,
                                          const oid_t &tuple_id) {
-  //LOG_INFO("num_deletes = %lu", ++num_deletes);
-  //RecycleTupleSlot(tile_group_id, tuple_id);
   auto &manager = catalog::Manager::GetInstance();
   auto tile_group_header = manager.GetTileGroup(tile_group_id)->GetHeader();
 
@@ -265,7 +259,7 @@ void OptimisticTxnManager::PerformDelete(const oid_t &tile_group_id,
 }
 
 Result OptimisticTxnManager::CommitTransaction() {
-  LOG_INFO("Committing peloton txn : %lu ", current_txn->GetTransactionId());
+  LOG_TRACE("Committing peloton txn : %lu ", current_txn->GetTransactionId());
 
   auto &manager = catalog::Manager::GetInstance();
 
@@ -333,11 +327,11 @@ Result OptimisticTxnManager::CommitTransaction() {
             continue;
           }
         }
-        LOG_INFO("transaction id=%lu",
+        LOG_TRACE("transaction id=%lu",
                  tile_group_header->GetTransactionId(tuple_slot));
-        LOG_INFO("begin commit id=%lu",
+        LOG_TRACE("begin commit id=%lu",
                  tile_group_header->GetBeginCommitId(tuple_slot));
-        LOG_INFO("end commit id=%lu",
+        LOG_TRACE("end commit id=%lu",
                  tile_group_header->GetEndCommitId(tuple_slot));
         // otherwise, validation fails. abort transaction.
         return AbortTransaction();
@@ -385,6 +379,9 @@ Result OptimisticTxnManager::CommitTransaction() {
                                                 INITIAL_TXN_ID);
         tile_group_header->SetTransactionId(tuple_slot, INITIAL_TXN_ID);
 
+        // recycle the older version.
+        RecycleTupleSlot(tile_group_id, tuple_slot, end_commit_id);
+
       } else if (tuple_entry.second == RW_TYPE_DELETE) {
         ItemPointer new_version =
             tile_group_header->GetNextItemPointer(tuple_slot);
@@ -410,11 +407,9 @@ Result OptimisticTxnManager::CommitTransaction() {
         new_tile_group_header->SetTransactionId(new_version.offset,
                                                 INVALID_TXN_ID);
         tile_group_header->SetTransactionId(tuple_slot, INITIAL_TXN_ID);
-        RecycleTupleSlot(tile_group_id, tuple_slot);
 
-        /*
-         * Call transaction_manager.cpp's AddToPossiblyFreeList(TxnId, tuple_slot);
-         */
+        // recycle the older version.
+        RecycleTupleSlot(tile_group_id, tuple_slot, end_commit_id);
 
       } else if (tuple_entry.second == RW_TYPE_INSERT) {
         assert(tile_group_header->GetTransactionId(tuple_slot) ==
@@ -441,7 +436,9 @@ Result OptimisticTxnManager::CommitTransaction() {
         COMPILER_MEMORY_FENCE;
 
         tile_group_header->SetTransactionId(tuple_slot, INVALID_TXN_ID);
-        RecycleTupleSlot(tile_group_id, tuple_slot);
+
+        // recycle the older version.
+        RecycleTupleSlot(tile_group_id, tuple_slot, START_OID);
       }
     }
   }
@@ -453,7 +450,7 @@ Result OptimisticTxnManager::CommitTransaction() {
 }
 
 Result OptimisticTxnManager::AbortTransaction() {
-  LOG_INFO("Aborting peloton txn : %lu ", current_txn->GetTransactionId());
+  LOG_TRACE("Aborting peloton txn : %lu ", current_txn->GetTransactionId());
   auto &manager = catalog::Manager::GetInstance();
 
   auto &rw_set = current_txn->GetRWSet();
@@ -483,8 +480,11 @@ Result OptimisticTxnManager::AbortTransaction() {
 
         new_tile_group_header->SetTransactionId(new_version.offset,
                                                 INVALID_TXN_ID);
-        RecycleTupleSlot(manager.GetTileGroup(new_version.block)->GetTileGroupId(), new_version.offset);
+        
         tile_group_header->SetTransactionId(tuple_slot, INITIAL_TXN_ID);
+
+        // recycle the newer version.
+        RecycleTupleSlot(new_version.block, new_version.offset, START_OID);
 
       } else if (tuple_entry.second == RW_TYPE_DELETE) {
         ItemPointer new_version =
@@ -504,8 +504,11 @@ Result OptimisticTxnManager::AbortTransaction() {
 
         new_tile_group_header->SetTransactionId(new_version.offset,
                                                 INVALID_TXN_ID);
-        RecycleTupleSlot(manager.GetTileGroup(new_version.block)->GetTileGroupId(), new_version.offset);
         tile_group_header->SetTransactionId(tuple_slot, INITIAL_TXN_ID);
+
+        // recycle the newer version.
+        RecycleTupleSlot(new_version.block, new_version.offset, START_OID);
+
 
       } else if (tuple_entry.second == RW_TYPE_INSERT) {
         tile_group_header->SetEndCommitId(tuple_slot, MAX_CID);
@@ -514,7 +517,10 @@ Result OptimisticTxnManager::AbortTransaction() {
         COMPILER_MEMORY_FENCE;
 
         tile_group_header->SetTransactionId(tuple_slot, INVALID_TXN_ID);
-        RecycleTupleSlot(tile_group_id, tuple_slot);
+        
+        // recycle the newer version.
+        RecycleTupleSlot(tile_group_id, tuple_slot, START_OID);
+      
       } else if (tuple_entry.second == RW_TYPE_INS_DEL) {
         tile_group_header->SetEndCommitId(tuple_slot, MAX_CID);
         tile_group_header->SetBeginCommitId(tuple_slot, MAX_CID);
@@ -522,7 +528,9 @@ Result OptimisticTxnManager::AbortTransaction() {
         COMPILER_MEMORY_FENCE;
 
         tile_group_header->SetTransactionId(tuple_slot, INVALID_TXN_ID);
-        RecycleTupleSlot(tile_group_id, tuple_slot);
+        
+        // recycle the newer version.
+        RecycleTupleSlot(tile_group_id, tuple_slot, START_OID);
       }
     }
   }

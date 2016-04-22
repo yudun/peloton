@@ -20,7 +20,6 @@
 #include "backend/expression/container_tuple.h"
 
 #include <atomic>
-#include <mutex>
 #include <iostream>
 #include <cassert>
 #include <queue>
@@ -75,40 +74,6 @@ class TileGroupHeader : public Printable {
 
   ~TileGroupHeader();
 
-  oid_t GetNextEmptyTupleSlot(int get_recycled) {
-    oid_t tuple_slot_id = INVALID_OID;
-
-    {
-      std::lock_guard<std::mutex> tile_header_lock(tile_header_mutex);
-
-      if (get_recycled) {
-        // check if there are recycled tuple slots
-        auto &gc_manager = gc::GCManager::GetInstance();
-        if (gc_manager.GetStatus() == GC_STATUS_RUNNING) {
-          auto free_slot = gc_manager.ReturnFreeSlot(
-              tile_group->GetDatabaseId(), tile_group->GetTableId());
-          if (free_slot != INVALID_OID) {
-            tuple_slot_id = free_slot;
-            this->SetTransactionId(tuple_slot_id, INVALID_TXN_ID);
-            this->SetBeginCommitId(tuple_slot_id, MAX_CID);
-            this->SetEndCommitId(tuple_slot_id, MAX_CID);
-          }
-        }
-      }
-
-      if ((tuple_slot_id == INVALID_OID) &&
-          (next_tuple_slot < num_tuple_slots)) {
-        // check tile group capacity
-        tuple_slot_id = next_tuple_slot.fetch_add(1, std::memory_order_relaxed);
-        /*this->SetTransactionId(tuple_slot_id, INVALID_TXN_ID);
-        this->SetBeginCommitId(tuple_slot_id, MAX_CID);
-        this->SetEndCommitId(tuple_slot_id, MAX_CID);*/
-      }
-    }
-
-    return tuple_slot_id;
-  }
-
   // this function is only called by DataTable::GetEmptyTupleSlot().
   oid_t GetNextEmptyTupleSlot() {
     oid_t tuple_slot_id =
@@ -139,22 +104,15 @@ class TileGroupHeader : public Printable {
     }
   }
 
-  inline void RecycleTupleSlot(const oid_t db_id, const oid_t tb_id,
-                               const oid_t tg_id, const oid_t t_id,
-                               const txn_id_t t) {
-    auto &gc_manager = gc::GCManager::GetInstance();
-    struct TupleMetadata tm;
-    tm.database_id = db_id;
-    tm.tile_group_id = tg_id;
-    tm.table_id = tb_id;
-    tm.tuple_slot_id = t_id;
-    tm.transaction_id = t;
-    gc_manager.AddPossiblyFreeTuple(tm);
+  oid_t GetCurrentNextTupleSlot() const {
+    // Carefully check if the next_tuple_slot is out of boundary
+    oid_t next_tid = next_tuple_slot;
+    if (next_tid < num_tuple_slots) {
+      return next_tid;
+    } else {
+      return num_tuple_slots;
+    }
   }
-
-  oid_t GetNextTupleSlot() const { return next_tuple_slot; }
-
-  // oid_t GetActiveTupleCount(const txn_id_t &txn_id);
 
   oid_t GetActiveTupleCount();
 
@@ -319,10 +277,9 @@ class TileGroupHeader : public Printable {
   oid_t num_tuple_slots;
 
   // next free tuple slot
+  // WARNING: this variable may not be the right boundary of the tile
+  // IT MAY OUT OF BOUNDARY! ALWAYS CHECK IF IT EXCEEDS num_tuple_slots
   std::atomic<oid_t> next_tuple_slot;
-
-  // synch helpers
-  std::mutex tile_header_mutex;
 
   Spinlock tile_header_lock;
 };

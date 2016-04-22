@@ -30,9 +30,10 @@ namespace storage {
 
 class Database : public Printable {
  public:
+  Database() = delete;
   Database(Database const &) = delete;
 
-  Database(oid_t database_oid) : database_oid(database_oid) {}
+  Database(const oid_t &database_oid);
 
   ~Database();
 
@@ -87,6 +88,9 @@ class Database : public Printable {
   std::vector<storage::DataTable *> tables;
 
   std::mutex database_mutex;
+
+  //std::shared_ptr<gc::GCManager> gc_manager;
+
 };
 
 }  // End storage namespace

@@ -25,6 +25,7 @@
 #include "backend/catalog/manager.h"
 #include "backend/expression/container_tuple.h"
 #include "backend/storage/tuple.h"
+#include "backend/gc/gc_manager_factory.h"
 
 #include "libcuckoo/cuckoohash_map.hh"
 
@@ -43,6 +44,7 @@ class TransactionManager {
   }
 
   virtual ~TransactionManager() {}
+
 
   txn_id_t GetNextTransactionId() { return next_txn_id_++; }
 
@@ -148,13 +150,9 @@ class TransactionManager {
    * concurrency control) tuples into possibly free from all underlying
    * concurrency implementations of transactions.
    */
-  void RecycleTupleSlot(const oid_t &tile_group_id, const oid_t &tuple_id) {
-    auto &manager = catalog::Manager::GetInstance();
-    storage::TileGroup *tile_group = manager.GetTileGroup(tile_group_id).get();
-    expression::ContainerTuple<storage::TileGroup> tuple(tile_group, tuple_id);
-    auto tile_group_header = manager.GetTileGroup(tile_group_id)->GetHeader();
-    auto transaction_id = current_txn->GetTransactionId();
-    tile_group_header -> RecycleTupleSlot(tile_group->GetDatabaseId(), tile_group->GetTableId(), tile_group_id, tuple_id, transaction_id);
+  void RecycleTupleSlot(const oid_t &tile_group_id, const oid_t &tuple_id, const cid_t &tuple_end_cid) {
+    auto tile_group = catalog::Manager::GetInstance().GetTileGroup(tile_group_id);
+    gc::GCManagerFactory::GetInstance().RecycleTupleSlot(tile_group->GetTableId(), tile_group_id, tuple_id, tuple_end_cid);
   }
 
   // Txn manager may store related information in TileGroupHeader, so when
@@ -192,6 +190,7 @@ class TransactionManager {
  private:
   std::atomic<txn_id_t> next_txn_id_;
   std::atomic<cid_t> next_cid_;
+
 
 };
 }  // End storage namespace

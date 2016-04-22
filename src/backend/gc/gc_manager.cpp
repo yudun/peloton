@@ -1,14 +1,14 @@
-/*-------------------------------------------------------------------------
- *
- * logmanager.cpp
- * file description
- *
- * Copyright(c) 2015, CMU
- *
- * /peloton/src/backend/gc/gc_manager.cpp
- *
- *-------------------------------------------------------------------------
- */
+//===----------------------------------------------------------------------===//
+//
+//                         Peloton
+//
+// gc_manager.cpp
+//
+// Identification: src/backend/gc/gc_manager.cpp
+//
+// Copyright (c) 2015-16, Carnegie Mellon University Database Group
+//
+//===----------------------------------------------------------------------===//
 
 #include "backend/common/types.h"
 #include "backend/gc/gc_manager.h"
@@ -16,95 +16,88 @@
 #include "backend/concurrency/transaction_manager_factory.h"
 namespace peloton {
 namespace gc {
-/**
- * @brief Return the singleton gc manager instance
- */
-GCManager &GCManager::GetInstance() {
-  static GCManager gc_manager;
-  return gc_manager;
+
+void GCManager::StartGC() {
+  if (this->gc_type_ == GC_TYPE_OFF) {
+    return;
+  }
+  if(this->gc_type_ == GC_TYPE_VACUUM) {
+    gc_thread_.reset(new std::thread(&GCManager::Poll, this));
+  }
+
+  this->is_running_ = true;
 }
 
-GCManager::GCManager() { this->status = GC_STATUS_OFF; }
-
-GCManager::~GCManager() {}
-
-bool GCManager::GetStatus() { return this->status; }
-
-void GCManager::SetStatus(GCStatus status) { this->status = status; }
-
-// delete a tuple from all its indexes it belongs in
-void GCManager::DeleteTupleFromIndexes(struct TupleMetadata tm) {
-  auto &manager = catalog::Manager::GetInstance();
-  auto db = manager.GetDatabaseWithOid(tm.database_id);
-  auto table = db->GetTableWithOid(tm.table_id);
-  auto index_count = table->GetIndexCount();
-  auto tile_group = manager.GetTileGroup(tm.tile_group_id).get();
-  auto tile_count = tile_group->GetTileCount();
-  for (oid_t i = 0; i < tile_count; i++) {
-    auto tile = tile_group->GetTile(i);
-    for (oid_t j = 0; j < index_count; j++) {
-      // delete tuple from each index
-      auto index = table->GetIndex(j);
-      ItemPointer item(tm.tile_group_id, tm.tuple_slot_id);
-      auto index_schema = index->GetKeySchema();
-      auto indexed_columns = index_schema->GetIndexedColumns();
-      std::unique_ptr<storage::Tuple> key(
-          new storage::Tuple(index_schema, true));
-      char *tile_tuple_location = tile->GetTupleLocation(tm.tuple_slot_id);
-      assert(tile_tuple_location);
-      storage::Tuple tuple(tile->GetSchema(), tile_tuple_location);
-      key->SetFromTuple(&tuple, indexed_columns, index->GetPool());
-      index->DeleteEntry(key.get(), item);
-    }
+void GCManager::StopGC() {
+  if (this->gc_type_ == GC_TYPE_OFF) {
+    return;
   }
+  this->is_running_ = false;
+  this->gc_thread_->join();
 }
 
 void GCManager::PerformGC() {
-  /*
-   * Check if we can move anything from the possibly free list to the free
-   * list.
-   */
+  // Check if we can move anything from the possibly free list to the free list.
   auto &manager = catalog::Manager::GetInstance();
-  int count = 0;
-  auto &trans_mgr = concurrency::TransactionManagerFactory::GetInstance();
-  auto oldest_trans = trans_mgr.GetMaxCommittedCid();
-  // TODO:: calculating oldest_trans just once is conservative. We might get
-  // better recycling by calculating oldest_trans more often, but calculating
-  // it is expensive.
 
-  while ((!possibly_free_list.empty()) && (count < MAX_TUPLES_PER_GC)) {
-    count++;
-    struct TupleMetadata tm;
-    possibly_free_list.pop(tm);
+  while (true) {
+    LOG_DEBUG("Polling GC thread...");
 
-    if (oldest_trans == INVALID_TXN_ID || oldest_trans == MAX_CID ||
-        tm.transaction_id < oldest_trans) {
-      // Now that we know we need to recycle tuple, we need to delete all
-      // tuples from the indexes to which it belongs as well.
-      DeleteTupleFromIndexes(tm);
+    auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
+    auto max_cid = txn_manager.GetMaxCommittedCid();
 
-      auto tile_group = manager.GetTileGroup(tm.tile_group_id).get();
-      tile_group->GetHeader()->SetTransactionId(tm.tuple_slot_id,
-          INVALID_TXN_ID);
-      tile_group->GetHeader()->SetBeginCommitId(tm.tuple_slot_id, MAX_CID);
-      tile_group->GetHeader()->SetEndCommitId(tm.tuple_slot_id, MAX_CID);
+    // if max_cid == MAX_CID, then it means there's no running transaction.
+    if (max_cid != MAX_CID) {
 
-      std::string key =
-        std::to_string(tm.database_id) + std::to_string(tm.table_id);
-      boost::lockfree::queue<struct TupleMetadata> *free_list = nullptr;
+      // every time we garbage collect at most 1000 tuples.
+      for (size_t i = 0; i < MAX_TUPLES_PER_GC; ++i) {
 
-      // we can now put the possibly free tuple into the actually free list
-      if (free_map.find(key, free_list)) {
-        free_list->push(tm);
-      } else {
-        free_list = new boost::lockfree::queue<struct TupleMetadata>(
-            MAX_TUPLES_PER_GC);
-        free_list->push(tm);
-        free_map.insert(key, free_list);
-      }
-    } else {
-      // if a tuple can't be reaped, add it back to the list.
-      possibly_free_list.push(tm);
+        TupleMetadata tuple_metadata;
+        // if there's no more tuples in the queue, then break.
+        if (possibly_free_list_.Pop(tuple_metadata) == false) {
+          break;
+        }
+
+        if (tuple_metadata.tuple_end_cid < max_cid) {
+          // Now that we know we need to recycle tuple, we need to delete all
+          // tuples from the indexes to which it belongs as well.
+
+          // TODO: currently, we do not delete tuple from indexes,
+          // as we do not have a concurrent index yet. --Yingjun
+          //DeleteTupleFromIndexes(tuple_metadata);
+
+          auto tile_group_header =
+              manager.GetTileGroup(tuple_metadata.tile_group_id)->GetHeader();
+
+          tile_group_header->SetTransactionId(tuple_metadata.tuple_slot_id,
+                                              INVALID_TXN_ID);
+          tile_group_header->SetBeginCommitId(tuple_metadata.tuple_slot_id,
+                                              MAX_CID);
+          tile_group_header->SetEndCommitId(tuple_metadata.tuple_slot_id,
+                                            MAX_CID);
+
+          std::shared_ptr<LockfreeQueue<TupleMetadata>> free_list;
+
+          // if the entry for table_id exists.
+          if (free_map_.find(tuple_metadata.table_id, free_list) ==
+              true) {
+            // if the entry for tuple_metadata.table_id exists.
+            free_list->Push(tuple_metadata);
+          } else {
+            // if the entry for tuple_metadata.table_id does not exist.
+            free_list.reset(new LockfreeQueue<TupleMetadata>(MAX_TUPLES_PER_GC));
+            free_list->Push(tuple_metadata);
+            free_map_[tuple_metadata.table_id] = free_list;
+          }
+
+        } else {
+          // if a tuple can't be reaped, add it back to the list.
+          possibly_free_list_.Push(tuple_metadata);
+        }
+      }  // end for
+    }    // end if
+    if (is_running_ == false) {
+      return;
     }
   }
 }
@@ -117,25 +110,43 @@ void GCManager::Poll() {
   }
 }
 
-// this function returns a free tuple slot, if one exists
-oid_t GCManager::ReturnFreeSlot(oid_t db_id, oid_t tb_id) {
-  auto return_slot = INVALID_OID;
-  std::string key = std::to_string(db_id) + std::to_string(tb_id);
-  boost::lockfree::queue<struct TupleMetadata> *free_list = nullptr;
-  if (free_map.find(key, free_list)) {
-    if (!free_list->empty()) {
-      struct TupleMetadata tm;
-      free_list->pop(tm);
-      return_slot = tm.tuple_slot_id;
-      return return_slot;
-    }
+// called by transaction manager.
+void GCManager::RecycleTupleSlot(const oid_t &table_id, const oid_t &tile_group_id, const oid_t &tuple_id, const cid_t &tuple_end_cid) {
+  if (this->gc_type_ == GC_TYPE_OFF) {
+    return;
   }
-  return INVALID_OID;
+  
+  TupleMetadata tuple_metadata;
+  tuple_metadata.table_id = table_id;
+  tuple_metadata.tile_group_id = tile_group_id;
+  tuple_metadata.tuple_slot_id = tuple_id;
+  tuple_metadata.tuple_end_cid = tuple_end_cid;
+
+  possibly_free_list_.Push(tuple_metadata);
 }
 
-// this function adds a tuple to the possibly free list
-void GCManager::AddPossiblyFreeTuple(struct TupleMetadata tm) {
-  this->possibly_free_list.push(tm);
+
+// this function returns a free tuple slot, if one exists
+ItemPointer GCManager::ReturnFreeSlot(const oid_t &table_id) {
+  if (this->gc_type_ == GC_TYPE_OFF) {
+    return ItemPointer();
+  }
+
+  std::shared_ptr<LockfreeQueue<TupleMetadata>> free_list;
+  // if there exists free_list
+  if (free_map_.find(table_id, free_list) == true) {
+    TupleMetadata tuple_metadata;
+    if (free_list->Pop(tuple_metadata) == true) {
+      return ItemPointer(tuple_metadata.tile_group_id, tuple_metadata.tuple_slot_id);
+    }
+  }
+  return ItemPointer();
+}
+
+// delete a tuple from all its indexes it belongs to.
+// TODO: we do not perform this function, 
+// as we do not have concurrent bw tree right now.
+void GCManager::DeleteTupleFromIndexes(const TupleMetadata &tuple_metadata __attribute__((unused))) {
 }
 
 }  // namespace gc

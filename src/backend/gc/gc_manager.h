@@ -1,23 +1,22 @@
-/*-------------------------------------------------------------------------
- *
- * gc_manager.h
- * file description
- *
- * Copyright(c) 2015, CMU
- *
- * /peloton/src/backend/gc/gc_manager.h
- *
- *-------------------------------------------------------------------------
- */
+//===----------------------------------------------------------------------===//
+//
+//                         Peloton
+//
+// gc_manager.h
+//
+// Identification: src/backend/gc/gc_manager.h
+//
+// Copyright (c) 2015-16, Carnegie Mellon University Database Group
+//
+//===----------------------------------------------------------------------===//
 
 #pragma once
 
-#include <mutex>
 #include <thread>
-#include <deque>
-#include <map>
-#include <list>
-#include <boost/lockfree/queue.hpp>
+#include <unordered_map>
+
+#include "backend/common/types.h"
+#include "backend/common/lockfree_queue.h"
 #include "backend/common/logger.h"
 #include "libcuckoo/cuckoohash_map.hh"
 
@@ -29,10 +28,8 @@ namespace gc {
 //===--------------------------------------------------------------------===//
 
 #define MAX_TUPLES_PER_GC 1000
+#define MAX_FREE_LIST_LENGTH 1000
 
-/**
- * Global GC Manager
- */
 class GCManager {
  public:
   GCManager(const GCManager &) = delete;
@@ -40,30 +37,38 @@ class GCManager {
   GCManager(GCManager &&) = delete;
   GCManager &operator=(GCManager &&) = delete;
 
-  // global singleton
-  static GCManager &GetInstance(void);
+  GCManager(const GCType type) : is_running_(true), gc_type_(type), possibly_free_list_(MAX_FREE_LIST_LENGTH) {}
+
+  ~GCManager() {
+    StopGC();
+  }
 
   // Get status of whether GC thread is running or not
-  bool GetStatus();
+  bool GetStatus() { return this->is_running_; }
 
-  void SetStatus(GCStatus status);
   void PerformGC();
-  void Poll();
+  void StartGC();
+  void StopGC();
 
-  void AddPossiblyFreeTuple(struct TupleMetadata tm);
-  oid_t ReturnFreeSlot(oid_t db_id, oid_t tb_id);
+  void RecycleTupleSlot(const oid_t &table_id, const oid_t &tile_group_id, const oid_t &tuple_id, const cid_t &tuple_end_cid);
+
+  ItemPointer ReturnFreeSlot(const oid_t &table_id);
 
  private:
-  GCStatus status;
-  cuckoohash_map<std::string, boost::lockfree::queue<struct TupleMetadata> *>
-      free_map;
-  boost::lockfree::queue<struct TupleMetadata> possibly_free_list{1000};
-  void DeleteTupleFromIndexes(struct TupleMetadata tm);
-  GCManager();
-  ~GCManager();
+  void Poll();
+  void DeleteTupleFromIndexes(const TupleMetadata &);
+
+  
+ private:
   //===--------------------------------------------------------------------===//
   // Data members
   //===--------------------------------------------------------------------===//
+  volatile bool is_running_;
+  GCType gc_type_;
+  LockfreeQueue<TupleMetadata> possibly_free_list_;
+  cuckoohash_map<oid_t, std::shared_ptr<LockfreeQueue<TupleMetadata>>> free_map_;
+  std::unique_ptr<std::thread> gc_thread_;
+
 };
 
 }  // namespace gc
