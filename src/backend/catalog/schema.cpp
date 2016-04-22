@@ -275,7 +275,19 @@ bool Schema::DropNotNull(Constraint constraint)  {
 
 }
 
+bool Schema::SetNotNull(Constraint constraint){
+  LOG_INFO("Schema::SetNotNull");
+  oid_t total_column = GetColumnCount();
 
+  for (oid_t column_itr = 0; column_itr < total_column; column_itr++) {
+
+    if(GetColumn(column_itr).column_name.compare(constraint.GetName())==0){
+      columns[column_itr].constraints.push_back(constraint);
+      return true;
+    }
+  }
+  return false;
+}
 
 }  // End catalog namespace
 }  // End peloton namespace

@@ -239,7 +239,8 @@ bool DDLTable::AlterTable(Oid relation_oid, AlterTableStmt *Astmt) {
           LOG_INFO("ALTER TABLE === SET NOT NULL ");
           bool status = DDLTable::SetNotNull(relation_oid, cmd->name);
 	  if (status == false) {
-          LOG_WARN("Failed to add constraint");
+          	LOG_WARN("Failed to add constraint");
+          	return false;
           }
           break;
       }
@@ -372,9 +373,14 @@ bool DDLTable::AddConstraint(Oid relation_oid, Constraint *constraint) {
   return true;
 }
 
+/**
+ * @brief Drop Not Null Constraint on a table
+ * @param Oid relation_oid
+ * @param Constraint *constraint
+ * @return true if drop not null successfully, false otherwise
+ */
 bool DDLTable::DropNotNull(Oid relation_oid, __attribute__((unused))char *conname){
 
-  LOG_INFO("=== DROP NOT NULL ===");
   oid_t database_oid = Bridge::GetCurrentDatabaseOid();
   assert(database_oid);
   auto &manager = catalog::Manager::GetInstance();
@@ -386,7 +392,6 @@ bool DDLTable::DropNotNull(Oid relation_oid, __attribute__((unused))char *connam
   if (conname != NULL) {
     column_name = std::string(conname);
   } else {
-    LOG_WARN("NAME == NULL");
     column_name = "";
   }  
   catalog::Constraint tmp_constraint = catalog::Constraint(CONSTRAINT_TYPE_NOTNULL,column_name);
@@ -395,9 +400,15 @@ bool DDLTable::DropNotNull(Oid relation_oid, __attribute__((unused))char *connam
 
 }
 
+/**
+ * @brief Set Not Null Constraint on a table
+ * @param Oid relation_oid
+ * @param Constraint *constraint
+ * @return true if set not null successfully, false otherwise
+ */
+
 bool DDLTable::SetNotNull(Oid relation_oid, char* conname){
    
-    LOG_INFO("=== SET NOT NULL ===");
     oid_t database_oid = Bridge::GetCurrentDatabaseOid();
     assert(database_oid);
     auto &manager = catalog::Manager::GetInstance();
@@ -408,13 +419,27 @@ bool DDLTable::SetNotNull(Oid relation_oid, char* conname){
     if (conname != NULL) {
       constrain_name = std::string(conname);
     } else {
-      LOG_INFO("NAME == NULL");
       constrain_name = "";
     }
-
-   return DDLTable::CheckNullExist(targetTable, constrain_name);
+    bool ExistNull = DDLTable::CheckNullExist(targetTable, constrain_name);
+    if( ExistNull ){
+       throw ConstraintException("NULL ALREADY EXISTED IN COLUMN "+constrain_name);
+       return false;
+    }
+    
+    catalog::Schema* targetSchema = targetTable->GetSchema();
+    catalog::Constraint tmp_constraint = catalog::Constraint(CONSTRAINT_TYPE_NOTNULL,
+                                                           constrain_name);
+    bool status = targetSchema->SetNotNull( tmp_constraint );
+    return status;
 }
 
+/**
+* @brief Check if column contains NULL
+* @param storage::DataTable* targetTable
+* @param std::string column_name
+* @return true if there is at least one NULL value, false otherwise
+*/
 bool DDLTable::CheckNullExist( storage::DataTable* targetTable, std::string column_name ){
 
     LOG_INFO("=== CHECK NULL EXIST FOR %s ===", column_name.c_str() );
@@ -449,10 +474,15 @@ bool DDLTable::CheckNullExist( storage::DataTable* targetTable, std::string colu
 
   auto result_iter = result_tiles.begin();
   for( ; result_iter != result_tiles.end(); result_iter++){
-    size_t source_tile_tuple_count = (*result_iter)->GetTupleCount();
-    size_t source_tile_column_count = (*result_iter)->GetColumnCount();
-    LOG_INFO("tuple_count = %lu, column_count = %lu",source_tile_tuple_count,source_tile_column_count);
-
+    size_t tuple_count = (*result_iter)->GetTupleCount();
+    size_t column_count = (*result_iter)->GetColumnCount();
+    LOG_INFO("tuple_count = %lu, column_count = %lu", tuple_count, column_count);
+    for(size_t tuple_iter = 0; tuple_iter < tuple_count; tuple_iter++ ){
+      if((*result_iter)->GetValue(tuple_iter, 0).IsNull()){
+        LOG_INFO("NULL VALUE AT %lu ", tuple_iter);
+        return true;
+      }
+    }
   }
   return false;
 }
