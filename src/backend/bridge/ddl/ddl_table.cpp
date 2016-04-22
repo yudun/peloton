@@ -475,7 +475,6 @@ bool DDLTable::CheckNullExist( storage::DataTable* targetTable, std::string colu
   auto result_iter = result_tiles.begin();
   for( ; result_iter != result_tiles.end(); result_iter++){
     size_t tuple_count = (*result_iter)->GetTupleCount();
-    size_t column_count = (*result_iter)->GetColumnCount();
     for(size_t tuple_iter = 0; tuple_iter < tuple_count; tuple_iter++ ){
       if((*result_iter)->GetValue(tuple_iter, 0).IsNull()){
         return true;
@@ -484,41 +483,6 @@ bool DDLTable::CheckNullExist( storage::DataTable* targetTable, std::string colu
   }
   return false;
 }
-
-
-/**
- * @brief Drop existing constraint to the table
- * @param relation_oid relation oid
- * @param constraint constraint
- * @return true if successfully drop the constraint, false otherwise
- */
-/*
-bool DDLTable::DropConstraint(Oid relation_oid, Constraint *constraint) {
-
-  ConstraintType contype = PostgresConstraintTypeToPelotonConstraintType(
-          (PostgresConstraintType)constraint->contype);
-
-  std::string conname;
-
-  if (constraint->conname != NULL) {
-    conname = constraint->conname;
-  } else {
-    conname = "";
-  }
-
-  switch (contype) {
-    case CONSTRAINT_TYPE_UNIQUE: {
-      break;
-    }
-    case CONSTRAINT_TYPE_FOREIGN: {
-      break;
-    }
-    default:
-      break;
-  }
-  return false;
-}
-*/
 
 
 /**
