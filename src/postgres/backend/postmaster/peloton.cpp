@@ -128,14 +128,18 @@ peloton_bootstrap() {
 
     }
 
-    //peloton_gc_mode = GC_TYPE_VACUUM; //FIXME: get through config
-    if(peloton_gc_mode == GC_TYPE_VACUUM) {
+    if(peloton_gc_mode != GC_TYPE_OFF) {
       // Start GC vacuuming thread
       auto& gc_manager = peloton::gc::GCManager::GetInstance();
       if(gc_manager.GetStatus() != GC_STATUS_RUNNING) {
-        elog(DEBUG2, "Starting GC Vacuuming thread.");
-        std::thread(&peloton::gc::GCManager::Poll, &gc_manager).detach();
-        gc_manager.SetStatus(GC_STATUS_RUNNING);
+        if(peloton_gc_mode == GC_TYPE_VACUUM) {
+          elog(DEBUG2, "Starting GC Vacuuming thread.");
+          std::thread(&peloton::gc::GCManager::Poll, &gc_manager).detach();
+          gc_manager.SetStatus(GC_STATUS_RUNNING);
+        } else if (peloton_gc_mode == GC_TYPE_COOPERATIVE) {
+          elog(DEBUG2, "Starting Co-operative GC instance.");
+          gc_manager.SetStatus(GC_STATUS_RUNNING);
+        }
       }
     }
   }

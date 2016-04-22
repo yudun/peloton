@@ -47,6 +47,7 @@ class GCManager {
   bool GetStatus();
 
   void SetStatus(GCStatus status);
+  void PerformGC();
   void Poll();
 
   void AddPossiblyFreeTuple(struct TupleMetadata tm);
