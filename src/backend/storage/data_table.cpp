@@ -48,7 +48,7 @@ DataTable::DataTable(catalog::Schema *schema, const std::string &table_name,
                      const size_t &tuples_per_tilegroup, const bool own_schema,
                      const bool adapt_table)
     : AbstractTable(database_oid, table_oid, table_name, schema, own_schema),
-      tuples_per_tilegroup_(tuples_per_tilegroup), 
+      tuples_per_tilegroup_(tuples_per_tilegroup),
       adapt_table_(adapt_table) {
   // Init default partition
   auto col_count = schema->GetColumnCount();
@@ -448,6 +448,21 @@ bool DataTable::IsDirty() const { return dirty_; }
  */
 void DataTable::ResetDirty() { dirty_ = false; }
 
+
+/**
+ * @brief Return total number of bytes a data table occupies
+ */
+
+uint64_t DataTable::GetMemoryFootprint() const {
+  uint64_t count = 0;
+  for (size_t i = 0; i < tile_groups_.size(); ++i)
+  {
+    auto tile_group = GetTileGroup(i);
+    count += tile_group -> GetMemoryFootprint();
+  }
+  return count;
+}
+
 //===--------------------------------------------------------------------===//
 // TILE GROUP
 //===--------------------------------------------------------------------===//
@@ -537,7 +552,7 @@ oid_t DataTable::AddDefaultTileGroup() {
 
     // add tile group metadata in locator
     catalog::Manager::GetInstance().AddTileGroup(tile_group_id, tile_group);
-    
+
     // we must guarantee that the compiler always add tile group before adding tile_group_count_.
     COMPILER_MEMORY_FENCE;
 
@@ -566,7 +581,7 @@ oid_t DataTable::AddTileGroupWithOid(const oid_t &tile_group_id) {
       database_oid, table_oid, tile_group_id, this, schemas, column_map,
       tuples_per_tilegroup_));
 
-  
+
   LOG_TRACE("Added a tile group ");
   tile_groups_.push_back(tile_group->GetTileGroupId());
 

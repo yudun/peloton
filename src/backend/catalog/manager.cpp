@@ -174,5 +174,14 @@ index::Index *Manager::GetIndexWithOid(const oid_t database_oid,
   return nullptr;
 }
 
+uint64_t Manager::GetMemoryFootprint() const {
+  uint64_t count = 0;
+  for (auto db : databases) {
+    count += db -> GetMemoryFootprint();
+  }
+  return count;
+}
+
+
 }  // End catalog namespace
 }  // End peloton namespace

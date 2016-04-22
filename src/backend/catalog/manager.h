@@ -81,6 +81,8 @@ class Manager {
 
   void DropDatabaseWithOid(const oid_t database_oid);
 
+  uint64_t GetMemoryFootprint() const;
+
   //===--------------------------------------------------------------------===//
   // CONVENIENCE WRAPPERS
   //===--------------------------------------------------------------------===//
