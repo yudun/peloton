@@ -125,6 +125,14 @@ ItemPointer DataTable::GetEmptyTupleSlot(const storage::Tuple *tuple,
   if (check_constraint == true && CheckConstraints(tuple) == false) {
     return INVALID_ITEMPOINTER;
   }
+  //=============== garbage collection==================
+  // check if there are recycled tuple slots
+  auto &gc_manager = gc::GCManagerFactory::GetInstance();
+  auto free_item_pointer = gc_manager.ReturnFreeSlot(this->table_oid);
+  if (free_item_pointer.IsNull() == false) {
+    return free_item_pointer;
+  }
+  //====================================================
 
   std::shared_ptr<storage::TileGroup> tile_group;
   oid_t tuple_slot = INVALID_OID;
@@ -140,6 +148,7 @@ ItemPointer DataTable::GetEmptyTupleSlot(const storage::Tuple *tuple,
     // now we have already obtained a new tuple slot.
     if (tuple_slot != INVALID_OID) {
       tile_group_id = tile_group->GetTileGroupId();
+      LOG_INFO("%s", GetInfo().c_str());
       break;
     }
   }
@@ -166,18 +175,6 @@ ItemPointer DataTable::InsertEmptyVersion(const storage::Tuple *tuple) {
   ItemPointer location = GetEmptyTupleSlot(tuple, false);
   if (location.block == INVALID_OID) {
     LOG_WARN("Failed to get tuple slot.");
-    return INVALID_ITEMPOINTER;
-  }
-
-  // Index checks and updates
-  if (InsertInSecondaryIndexes(tuple, location) == false) {
-    LOG_WARN("Index constraint violated");
-    return INVALID_ITEMPOINTER;
-  }
-
-  // ForeignKey checks
-  if (CheckForeignKeyConstraints(tuple) == false) {
-    LOG_WARN("ForeignKey constraint violated: inserted value doesn't appear in refered table");
     return INVALID_ITEMPOINTER;
   }
 
@@ -383,6 +380,13 @@ bool DataTable::CheckForeignKeyConstraints(const storage::Tuple *tuple) {
         std::unique_ptr<storage::Tuple> key(new storage::Tuple(foreign_key_schema.get(), true));
         //FIXME: what is the 3rd arg should be?
         key->SetFromTuple(tuple, key_attrs, index->GetPool());
+
+        // if every column in key is null, we skip the foreign key insert check for it
+        // because it may be a result of insert version
+        if (key->IsEveryColumnNull()) {
+          LOG_INFO("EVERY COLUMN IN KEY IS NULL!");
+          break;
+        }
 
         LOG_INFO("check key: %s", key->GetInfo().c_str());
         auto locations = index->ScanKey(key.get());
@@ -634,28 +638,30 @@ std::shared_ptr<storage::TileGroup> DataTable::GetTileGroupById(
 const std::string DataTable::GetInfo() const {
   std::ostringstream os;
 
-  os << "=====================================================\n";
-  os << "TABLE :\n";
+  //os << "=====================================================\n";
+  //os << "TABLE :\n";
 
   oid_t tile_group_count = GetTileGroupCount();
-  os << "Tile Group Count : " << tile_group_count << "\n";
+  //os << "Tile Group Count : " << tile_group_count << "\n";
 
   oid_t tuple_count = 0;
+  oid_t table_id = 0;
   for (oid_t tile_group_itr = 0; tile_group_itr < tile_group_count;
        tile_group_itr++) {
     auto tile_group = GetTileGroup(tile_group_itr);
+    table_id = tile_group->GetTableId();
     auto tile_tuple_count = tile_group->GetNextTupleSlot();
 
-    os << "Tile Group Id  : " << tile_group_itr
-        << " Tuple Count : " << tile_tuple_count << "\n";
-    os << (*tile_group);
+    //os << "Tile Group Id  : " << tile_group_itr
+    //    << " Tuple Count : " << tile_tuple_count << "\n";
+    //os << (*tile_group);
 
     tuple_count += tile_tuple_count;
   }
 
-  os << "Table Tuple Count :: " << tuple_count << "\n";
+  os << "Table " << table_id  << " Tuple Count :: " << tuple_count << "\n";
 
-  os << "=====================================================\n";
+  //os << "=====================================================\n";
 
   return os.str();
 }

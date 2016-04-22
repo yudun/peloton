@@ -122,7 +122,9 @@ class TransactionTestsUtil {
                                          oid_t database_id = INVALID_OID,
                                          oid_t relation_id = INVALID_OID,
                                          oid_t index_oid = 1234,
-                                         bool need_primary_index = false);
+                                         bool need_primary_index = false,
+                                         bool need_secondary_index = false,
+                                         oid_t secondary_index_oid = 1235);
   // Create the same table as CreateTable with primary key constrainst on id and
   // unique key constraints on value
   static storage::DataTable *CreatePrimaryKeyUniqueKeyTable();
@@ -158,8 +160,11 @@ struct TransactionOperation {
   int id;
   // value of the row, used by INSERT and DELETE operation
   int value;
-  TransactionOperation(txn_op_t op_, int id_, int value_)
-      : op(op_), id(id_), value(value_){};
+  // the table to operate on
+  storage::DataTable *table;
+
+  TransactionOperation(txn_op_t op_, int id_, int value_, storage::DataTable *table_)
+      : op(op_), id(id_), value(value_), table(table_){};
 };
 
 // The schedule for transaction execution
@@ -220,6 +225,7 @@ class TransactionThread {
     txn_op_t op = schedule->operations[cur_seq].op;
     int id = schedule->operations[cur_seq].id;
     int value = schedule->operations[cur_seq].value;
+    storage::DataTable* operate_table = schedule->operations[cur_seq].table;
 
     if (id == TXN_STORED_VALUE)
       id = schedule->stored_value;
@@ -240,39 +246,39 @@ class TransactionThread {
       case TXN_OP_INSERT: {
         LOG_TRACE("Execute Insert");
         execute_result =
-            TransactionTestsUtil::ExecuteInsert(txn, table, id, value);
+            TransactionTestsUtil::ExecuteInsert(txn, operate_table, id, value);
         break;
       }
       case TXN_OP_READ: {
         LOG_TRACE("Execute Read");
         int result;
         execute_result =
-            TransactionTestsUtil::ExecuteRead(txn, table, id, result);
+            TransactionTestsUtil::ExecuteRead(txn, operate_table, id, result);
         schedule->results.push_back(result);
         break;
       }
       case TXN_OP_DELETE: {
         LOG_TRACE("Execute Delete");
-        execute_result = TransactionTestsUtil::ExecuteDelete(txn, table, id);
+        execute_result = TransactionTestsUtil::ExecuteDelete(txn, operate_table, id);
         break;
       }
       case TXN_OP_UPDATE: {
         LOG_TRACE("Execute Update");
         execute_result =
-            TransactionTestsUtil::ExecuteUpdate(txn, table, id, value);
+            TransactionTestsUtil::ExecuteUpdate(txn, operate_table, id, value);
         break;
       }
       case TXN_OP_SCAN: {
         LOG_TRACE("Execute Scan");
         execute_result = TransactionTestsUtil::ExecuteScan(
-            txn, schedule->results, table, id);
+            txn, schedule->results, operate_table, id);
         break;
       }
       case TXN_OP_UPDATE_BY_VALUE: {
         int old_value = id;
         int new_value = value;
         execute_result = TransactionTestsUtil::ExecuteUpdateByValue(
-            txn, table, old_value, new_value);
+            txn, operate_table, old_value, new_value);
         break;
       }
       case TXN_OP_ABORT: {
@@ -291,7 +297,7 @@ class TransactionThread {
       case TXN_OP_READ_STORE: {
         int result;
         execute_result =
-            TransactionTestsUtil::ExecuteRead(txn, table, id, result);
+            TransactionTestsUtil::ExecuteRead(txn, operate_table, id, result);
         schedule->results.push_back(result);
         LOG_TRACE("READ_STORE, key: %d, read: %d, modify and stored as: %d", id, result, result+value);
         schedule->stored_value = result + value;
@@ -365,43 +371,62 @@ class TransactionScheduler {
     return *this;
   }
 
-  void Insert(int id, int value) {
-    schedules[cur_txn_id].operations.emplace_back(TXN_OP_INSERT, id, value);
+  void Insert(int id, int value, storage::DataTable* operate_table = nullptr) {
+    if (operate_table == nullptr)
+      operate_table = table;
+    schedules[cur_txn_id].operations.emplace_back(TXN_OP_INSERT, id, value, operate_table);
     sequence[time++] = cur_txn_id;
   }
-  void Read(int id) {
-    schedules[cur_txn_id].operations.emplace_back(TXN_OP_READ, id, 0);
+  void Read(int id, storage::DataTable* operate_table = nullptr) {
+    if (operate_table == nullptr)
+      operate_table = table;
+    schedules[cur_txn_id].operations.emplace_back(TXN_OP_READ, id, 0, operate_table);
     sequence[time++] = cur_txn_id;
   }
-  void Delete(int id) {
-    schedules[cur_txn_id].operations.emplace_back(TXN_OP_DELETE, id, 0);
+  void Delete(int id, storage::DataTable* operate_table = nullptr) {
+    if (operate_table == nullptr)
+      operate_table = table;
+    schedules[cur_txn_id].operations.emplace_back(TXN_OP_DELETE, id, 0, operate_table);
     sequence[time++] = cur_txn_id;
   }
-  void Update(int id, int value) {
-    schedules[cur_txn_id].operations.emplace_back(TXN_OP_UPDATE, id, value);
+  void Update(int id, int value, storage::DataTable* operate_table = nullptr) {
+    if (operate_table == nullptr)
+      operate_table = table;
+    schedules[cur_txn_id].operations.emplace_back(TXN_OP_UPDATE, id, value, operate_table);
     sequence[time++] = cur_txn_id;
   }
-  void Scan(int id) {
-    schedules[cur_txn_id].operations.emplace_back(TXN_OP_SCAN, id, 0);
+  void Scan(int id, storage::DataTable* operate_table = nullptr) {
+    if (operate_table == nullptr)
+      operate_table = table;
+    schedules[cur_txn_id].operations.emplace_back(TXN_OP_SCAN, id, 0, operate_table);
     sequence[time++] = cur_txn_id;
   }
-  void Abort() {
-    schedules[cur_txn_id].operations.emplace_back(TXN_OP_ABORT, 0, 0);
+  void Abort(storage::DataTable* operate_table = nullptr) {
+    if (operate_table == nullptr)
+      operate_table = table;
+    schedules[cur_txn_id].operations.emplace_back(TXN_OP_ABORT, 0, 0, operate_table);
     sequence[time++] = cur_txn_id;
   }
-  void Commit() {
-    schedules[cur_txn_id].operations.emplace_back(TXN_OP_COMMIT, 0, 0);
+  void Commit(storage::DataTable* operate_table = nullptr) {
+    if (operate_table == nullptr)
+      operate_table = table;
+    schedules[cur_txn_id].operations.emplace_back(TXN_OP_COMMIT, 0, 0, operate_table);
     sequence[time++] = cur_txn_id;
   }
-  void UpdateByValue(int old_value, int new_value) {
-    schedules[cur_txn_id].operations.emplace_back(TXN_OP_UPDATE_BY_VALUE, old_value, new_value);
+  void UpdateByValue(int old_value, int new_value, storage::DataTable* operate_table = nullptr) {
+    if (operate_table == nullptr)
+      operate_table = table;
+    schedules[cur_txn_id].operations.emplace_back(TXN_OP_UPDATE_BY_VALUE, old_value, new_value,
+                                                  operate_table);
     sequence[time++] = cur_txn_id;
   }
   // ReadStore will store the (result of read + modify) to the schedule, the
   // schedule may refer it by using TXN_STORED_VALUE in adding a new operation
   // to a schedule. See usage in isolation_level_test SIAnomalyTest.
-  void ReadStore(int id, int modify) {
-    schedules[cur_txn_id].operations.emplace_back(TXN_OP_READ_STORE, id, modify);
+  void ReadStore(int id, int modify, storage::DataTable* operate_table = nullptr) {
+    if (operate_table == nullptr)
+      operate_table = table;
+    schedules[cur_txn_id].operations.emplace_back(TXN_OP_READ_STORE, id, modify, operate_table);
     sequence[time++] = cur_txn_id;
   }
 

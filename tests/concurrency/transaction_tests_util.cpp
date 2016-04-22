@@ -141,7 +141,9 @@ storage::DataTable *TransactionTestsUtil::CreateTable(int num_key,
                                                       oid_t database_id,
                                                       oid_t relation_id,
                                                       oid_t index_oid,
-                                                      bool need_primary_index) {
+                                                      bool need_primary_index,
+                                                      bool need_secondary_index,
+                                                      oid_t secondary_index_oid) {
   auto id_column = catalog::Column(VALUE_TYPE_INTEGER,
                                    GetTypeSize(VALUE_TYPE_INTEGER), "id", true);
   auto value_column = catalog::Column(
@@ -171,6 +173,23 @@ storage::DataTable *TransactionTestsUtil::CreateTable(int num_key,
   index::Index *pkey_index = index::IndexFactory::GetInstance(index_metadata);
 
   table->AddIndex(pkey_index);
+
+  if (need_secondary_index) {
+    std::vector<oid_t> key_attrs = {1};
+    auto tuple_schema = table->GetSchema();
+    bool unique = false;
+    auto key_schema = catalog::Schema::CopySchema(tuple_schema, key_attrs);
+    key_schema->SetIndexedColumns(key_attrs);
+
+    auto index_metadata = new index::IndexMetadata(
+        "secondary_btree_index", secondary_index_oid, INDEX_TYPE_BTREE,
+        INDEX_CONSTRAINT_TYPE_DEFAULT,
+        tuple_schema, key_schema, unique);
+
+    index::Index *sec_key_index = index::IndexFactory::GetInstance(index_metadata);
+
+    table->AddIndex(sec_key_index);
+  }
 
   // add this table to current database
   auto &manager = catalog::Manager::GetInstance();
@@ -265,7 +284,11 @@ bool TransactionTestsUtil::ExecuteRead(concurrency::Transaction *transaction,
     result = -1;
   else {
     EXPECT_EQ(1, result_tile->GetTupleCount());
-    result = result_tile->GetValue(0, 1).GetIntegerForTestsOnly();
+    Value raw_result = result_tile->GetValue(0, 1);
+    if (raw_result.IsNull())
+      result = INT32_NULL;
+    else
+      result = raw_result.GetIntegerForTestsOnly();
   }
 
   return true;
