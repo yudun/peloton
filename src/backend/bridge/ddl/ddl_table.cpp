@@ -426,7 +426,7 @@ bool DDLTable::SetNotNull(Oid relation_oid, char* conname){
        throw ConstraintException("NULL ALREADY EXISTED IN COLUMN "+constrain_name);
        return false;
     }
-    
+   
     catalog::Schema* targetSchema = targetTable->GetSchema();
     catalog::Constraint tmp_constraint = catalog::Constraint(CONSTRAINT_TYPE_NOTNULL,
                                                            constrain_name);
@@ -476,10 +476,8 @@ bool DDLTable::CheckNullExist( storage::DataTable* targetTable, std::string colu
   for( ; result_iter != result_tiles.end(); result_iter++){
     size_t tuple_count = (*result_iter)->GetTupleCount();
     size_t column_count = (*result_iter)->GetColumnCount();
-    LOG_INFO("tuple_count = %lu, column_count = %lu", tuple_count, column_count);
     for(size_t tuple_iter = 0; tuple_iter < tuple_count; tuple_iter++ ){
       if((*result_iter)->GetValue(tuple_iter, 0).IsNull()){
-        LOG_INFO("NULL VALUE AT %lu ", tuple_iter);
         return true;
       }
     }
