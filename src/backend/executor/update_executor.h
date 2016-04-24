@@ -37,6 +37,8 @@ class UpdateExecutor : public AbstractExecutor {
  private:
   storage::DataTable *target_table_ = nullptr;
   const planner::ProjectInfo *project_info_ = nullptr;
+
+  bool CheckUpdateForeiKeyConstraints(LogicalTile * source_tile);
 };
 
 }  // namespace executor

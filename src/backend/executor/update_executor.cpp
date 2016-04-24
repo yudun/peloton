@@ -80,9 +80,19 @@ bool UpdateExecutor::DExecute() {
   auto &transaction_manager =
       concurrency::TransactionManagerFactory::GetInstance();
 
+  // Check all the foreign key constraints referencing this table
+  // and perform possible cascading action
+  auto res = CheckUpdateForeiKeyConstraints(source_tile.get());
+  if (!res) {
+    transaction_manager.SetTransactionResult(RESULT_FAILURE);
+    return res;
+  }
+
   // Update tuples in given table
   for (oid_t visible_tuple_id : *source_tile) {
     oid_t physical_tuple_id = pos_lists[0][visible_tuple_id];
+
+    LOG_INFO("update tuple in table %s", target_table_->GetName().c_str());
     LOG_TRACE("Visible Tuple id : %lu, Physical Tuple id : %lu ",
               visible_tuple_id, physical_tuple_id);
 
@@ -153,6 +163,16 @@ bool UpdateExecutor::DExecute() {
       return false;
     }
   }
+  return true;
+}
+
+/**
+ * @brief Check the foreign key constraints for update.
+ *  It will perform proper action according to the UpdateAction type of each foreign key constraints
+ * @param source_tile the logical tile which contain all the tuple to be updated
+ * @return true if all the foreign key constraints' action are succeefully perform for this update
+ */
+bool UpdateExecutor::CheckUpdateForeiKeyConstraints(__attribute__((unused)) LogicalTile * source_tile) {
   return true;
 }
 
