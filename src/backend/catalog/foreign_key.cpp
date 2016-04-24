@@ -138,7 +138,7 @@ bool ForeignKey::IsTupleInSinkTable(storage::DataTable* sink_table, const storag
     // this foreign key constraint
     if (index->GetOid() == pk_index_id) {
       LOG_INFO("BEGIN CHECKING REFERENCED TABLE");
-      LOG_INFO("CHECK COLUMN OFFSET = %lu", pk_column_offsets[0]);
+      LOG_INFO("CHECK COLUMN OFFSET = %u", pk_column_offsets[0]);
 
       std::unique_ptr<catalog::Schema> referenced_key_schema(
           catalog::Schema::CopySchema(sink_table->GetSchema(), pk_column_offsets));
@@ -247,7 +247,7 @@ bool ForeignKey::DeleteReferencingTupleOnCascading(executor::ExecutorContext *ex
                                                    storage::DataTable* source_table,
                                                    storage::Tuple& cur_tuple) {
 
-  LOG_INFO("Cascading delete foreign key offset %lu in table %s",
+  LOG_INFO("Cascading delete foreign key offset %u in table %s",
            fk_column_offsets[0], source_table->GetName().c_str());
 
   // Delete
@@ -282,7 +282,7 @@ bool ForeignKey::SetNullReferencingTupleOnCascading(executor::ExecutorContext *e
                                                     storage::DataTable* source_table,
                                                     storage::Tuple& cur_tuple,
                                                     std::vector<oid_t>& direct_map_column_offsets) {
-  LOG_INFO("Cascading set null foreign key offset %lu in table %s",
+  LOG_INFO("Cascading set null foreign key offset %u in table %s",
            fk_column_offsets[0], source_table->GetName().c_str());
 
   Value null_val = ValueFactory::GetNullValue();

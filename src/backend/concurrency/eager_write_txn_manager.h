@@ -184,7 +184,7 @@ namespace peloton {
       // note: should be protected in EwReaderLock
       void AddReader(storage::TileGroupHeader *tile_group_header, const oid_t &tuple_id) {
         auto txn_id = current_txn->GetTransactionId();
-        LOG_INFO("Add reader %lu, tuple_id = %lu", txn_id, tuple_id);
+        LOG_INFO("Add reader %lu, tuple_id = %u", txn_id, tuple_id);
 
 
         TxnList *reader = new TxnList(txn_id);
