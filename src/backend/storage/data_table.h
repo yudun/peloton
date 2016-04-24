@@ -59,8 +59,11 @@ namespace index {
 class Index;
 }
 
-namespace storage {
+namespace catalog {
+class ForeignKey;
+}
 
+namespace storage {
 class Tuple;
 class TileGroup;
 

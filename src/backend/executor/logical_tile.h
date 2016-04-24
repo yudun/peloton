@@ -28,6 +28,7 @@ class Schema;
 namespace storage {
 class Tile;
 class TileGroup;
+class Tuple;
 }
 
 namespace executor {
@@ -100,6 +101,8 @@ class LogicalTile : public Printable {
   void SetPositionLists(PositionLists &&position_lists);
 
   void SetPositionListsAndVisibility(PositionLists &&position_lists);
+
+  std::vector<storage::Tuple> GetBaseTupleListFromSourceTile();
 
   // Get a string representation for debugging
   const std::string GetInfo() const;

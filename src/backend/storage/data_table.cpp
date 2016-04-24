@@ -347,11 +347,10 @@ bool DataTable::InsertInSecondaryIndexes(const storage::Tuple *tuple,
 /**
  * @brief Check if all the foreign key constraints on this table
  * is satisfied by checking whether the key exist in the referred table
- *
+ * @param tuple the inserted tupe to be checked for the foreign key constraint
  * @returns True on success, false if any foreign key constraints fail
  */
 bool DataTable::CheckForeignKeyConstraints(const storage::Tuple *tuple) {
-
   for (auto foreign_key : foreign_keys_) {
     LOG_INFO("This foreignKey is from table %lu:index %lu to table %lu:index %lu",
              foreign_key->GetSrcTableOid(),
@@ -360,59 +359,12 @@ bool DataTable::CheckForeignKeyConstraints(const storage::Tuple *tuple) {
              foreign_key->GetSinkIndexOid());
 
     oid_t sink_table_id = foreign_key->GetSinkTableOid();
-    storage::DataTable *ref_table =
+    storage::DataTable *sink_table =
         (storage::DataTable *)catalog::Manager::GetInstance().GetTableWithOid(
             database_oid, sink_table_id);
 
-    int ref_table_index_count = ref_table->GetIndexCount();
-
-    for (int index_itr = ref_table_index_count - 1; index_itr >= 0; --index_itr) {
-      auto index = ref_table->GetIndex(index_itr);
-
-      // Get the index in the refered table corresponding with
-      // this foreign key constraint
-      if (index->GetOid() == foreign_key->GetSinkIndexOid()) {
-        LOG_INFO("BEGIN CHECKING REFERED TABLE");
-        auto key_attrs = foreign_key->GetFKColumnOffsets();
-        LOG_INFO("CHECK COLUMN OFFSET = %lu", key_attrs[0]);
-
-        std::unique_ptr<catalog::Schema> foreign_key_schema(catalog::Schema::CopySchema(schema, key_attrs));
-        std::unique_ptr<storage::Tuple> key(new storage::Tuple(foreign_key_schema.get(), true));
-        //FIXME: what is the 3rd arg should be?
-        key->SetFromTuple(tuple, key_attrs, index->GetPool());
-
-        // if every column in key is null, we skip the foreign key insert check for it
-        // because it may be a result of insert version
-        if (key->IsEveryColumnNull()) {
-          LOG_INFO("EVERY COLUMN IN KEY IS NULL!");
-          break;
-        }
-
-        LOG_INFO("check key: %s", key->GetInfo().c_str());
-        auto locations = index->ScanKey(key.get());
-
-        auto &transaction_manager =
-            concurrency::TransactionManagerFactory::GetInstance();
-        // if visible key doesn't exist in the refered column
-        bool visible_key_exist = false;
-        if (locations.size() > 0) {
-          for(unsigned long i = 0; i < locations.size(); i++) {
-            auto tile_group_header = catalog::Manager::GetInstance()
-                .GetTileGroup(locations[i].block)->GetHeader();
-            auto tuple_id = locations[i].offset;
-            if (transaction_manager.IsVisible(tile_group_header, tuple_id)) {
-              visible_key_exist = true;
-              break;
-            }
-          }
-        }
-
-        if (!visible_key_exist)
-          return false;
-
-        break;
-      }
-    }
+    if (!foreign_key->IsTupleInSinkTable(sink_table, tuple))
+      return false;
   }
 
   return true;
