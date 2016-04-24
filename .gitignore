@@ -1,9 +1,5 @@
 #==============================================================================#
 # This file specifies intentionally untracked files that git should ignore.
-# See: http://www.kernel.org/pub/software/scm/git/docs/gitignore.html
-#
-# This file is intentionally different from the output of `git svn show-ignore`,
-# as most of those are useless.
 #==============================================================================#
 
 #==============================================================================#
@@ -34,9 +30,11 @@
 /GSYMS
 /GTAGS
 .gitusers
+autom4te.cache
 cscope.files
 cscope.out
 autoconf/aclocal.m4
+autoconf/autom4te.cache
 /compile_commands.json
 
 #==============================================================================#
@@ -78,6 +76,7 @@ build/
 *.o
 *.lo
 *.la
+*~
 *.pdf
 *.swp
 a.out
@@ -92,8 +91,9 @@ a.out
 # Backup artifacts
 #==============================================================================#
 ~*
+*~
 tmp/
- 
+
 #==============================================================================#
 # Doxygen artifacts
 #==============================================================================#
@@ -127,7 +127,6 @@ doc/
 #==============================================================================#
 .idea
 *.iml
-CMakeLists.txt
 
 #==============================================================================#
 # Code Coverage files
@@ -143,17 +142,24 @@ scripts/PelotonTest/out
 scripts/PelotonTest/lib
 
 #==============================================================================#
-# Third party
+# Protobuf
 #==============================================================================#
-third_party/nanomsg
+*.pb-c.c
+*.pb-c.h
+*.pb.cc
+*.pb.h
+*.pb.go
 
 #==============================================================================#
-# local helper utils
+# Third party
 #==============================================================================#
-/sync.sh
-handin.tar
-handin
-=======
+third_party/nanomsg/
+third_party/nvml/
+third_party/logcabin/
+
+#==============================================================================#
+# Eclipse
+#==============================================================================#
 
 .metadata
 bin/
@@ -205,9 +211,6 @@ local.properties
 
 # Code Recommenders
 .recommenders/
-<<<<<<< HEAD
 
 CMakeLists.txt
-=======
 io_file
->>>>>>> wbl
