@@ -124,7 +124,8 @@ class TransactionTestsUtil {
                                          oid_t index_oid = 1234,
                                          bool need_primary_index = false,
                                          bool need_secondary_index = false,
-                                         oid_t secondary_index_oid = 1235);
+                                         oid_t secondary_index_oid = 1235,
+                                         int inserted_value = 0);
   // Create the same table as CreateTable with primary key constrainst on id and
   // unique key constraints on value
   static storage::DataTable *CreatePrimaryKeyUniqueKeyTable();

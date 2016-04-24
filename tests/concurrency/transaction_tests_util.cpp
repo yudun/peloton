@@ -143,7 +143,8 @@ storage::DataTable *TransactionTestsUtil::CreateTable(int num_key,
                                                       oid_t index_oid,
                                                       bool need_primary_index,
                                                       bool need_secondary_index,
-                                                      oid_t secondary_index_oid) {
+                                                      oid_t secondary_index_oid,
+                                                      int inserted_value) {
   auto id_column = catalog::Column(VALUE_TYPE_INTEGER,
                                    GetTypeSize(VALUE_TYPE_INTEGER), "id", true);
   auto value_column = catalog::Column(
@@ -202,7 +203,7 @@ storage::DataTable *TransactionTestsUtil::CreateTable(int num_key,
   auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
   auto txn = txn_manager.BeginTransaction();
   for (int i = 0; i < num_key; i++) {
-    ExecuteInsert(txn, table, i, 0);
+    ExecuteInsert(txn, table, i, inserted_value);
   }
   txn_manager.CommitTransaction();
 
