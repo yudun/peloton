@@ -99,19 +99,17 @@ bool UpdateExecutor::DExecute() {
     if (transaction_manager.IsOwner(tile_group_header, physical_tuple_id) ==
         true) {
       // if the thread is the owner of the tuple, then directly update in place.
-      storage::Tuple *new_tuple =
-          new storage::Tuple(target_table_->GetSchema(), true);
+      std::unique_ptr<storage::Tuple> new_tuple(
+          new storage::Tuple(target_table_->GetSchema(), true));
       // Make a copy of the original tuple and allocate a new tuple
       expression::ContainerTuple<storage::TileGroup> old_tuple(
           tile_group, physical_tuple_id);
       // Execute the projections
-      project_info_->Evaluate(new_tuple, &old_tuple, nullptr,
+      project_info_->Evaluate(new_tuple.get(), &old_tuple, nullptr,
                               executor_context_);
-      tile_group->CopyTuple(new_tuple, physical_tuple_id);
+      tile_group->CopyTuple(new_tuple.get(), physical_tuple_id);
 
       transaction_manager.PerformUpdate(tile_group_id, physical_tuple_id);
-      delete new_tuple;
-      new_tuple = nullptr;
 
     } else if (transaction_manager.IsOwnable(tile_group_header,
                                              physical_tuple_id) == true) {
@@ -126,25 +124,23 @@ bool UpdateExecutor::DExecute() {
       }
       // if it is the latest version and not locked by other threads, then
       // insert a new version.
-      storage::Tuple *new_tuple =
-          new storage::Tuple(target_table_->GetSchema(), true);
+      std::unique_ptr<storage::Tuple> new_tuple(
+          new storage::Tuple(target_table_->GetSchema(), true));
 
       // Make a copy of the original tuple and allocate a new tuple
       expression::ContainerTuple<storage::TileGroup> old_tuple(
           tile_group, physical_tuple_id);
       // Execute the projections
-      project_info_->Evaluate(new_tuple, &old_tuple, nullptr,
+      project_info_->Evaluate(new_tuple.get(), &old_tuple, nullptr,
                               executor_context_);
 
       // finally insert updated tuple into the table
-      ItemPointer location = target_table_->InsertVersion(new_tuple);
+      ItemPointer location = target_table_->InsertVersion(new_tuple.get());
 
       // FIXME: PerformUpdate() will not be executed if the insertion failed,
       // There is a write lock, acquired, but since it is not in the write set,
       // the acquired lock can't be released when the txn is aborted.
       if (location.IsNull() == true) {
-        delete new_tuple;
-        new_tuple = nullptr;
         LOG_TRACE("Fail to insert new tuple. Set txn failure.");
         transaction_manager.SetTransactionResult(Result::RESULT_FAILURE);
         return false;
@@ -153,9 +149,6 @@ bool UpdateExecutor::DExecute() {
                                         location);
 
       executor_context_->num_processed += 1;  // updated one
-
-      delete new_tuple;
-      new_tuple = nullptr;
     } else {
       // transaction should be aborted as we cannot update the latest version.
       LOG_TRACE("Fail to update tuple. Set txn failure.");

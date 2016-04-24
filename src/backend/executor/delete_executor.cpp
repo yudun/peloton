@@ -125,19 +125,17 @@ bool DeleteExecutor::DExecute() {
       }
       // if it is the latest version and not locked by other threads, then
       // insert a new version.
-      storage::Tuple *new_tuple =
-          new storage::Tuple(target_table_->GetSchema(), true);
+      std::unique_ptr<storage::Tuple> new_tuple(
+          new storage::Tuple(target_table_->GetSchema(), true));
 
       // Make a copy of the original tuple and allocate a new tuple
       expression::ContainerTuple<storage::TileGroup> old_tuple(
           tile_group, physical_tuple_id);
 
       // finally insert updated tuple into the table
-      ItemPointer location = target_table_->InsertEmptyVersion(new_tuple);
+      ItemPointer location = target_table_->InsertEmptyVersion(new_tuple.get());
 
       if (location.block == INVALID_OID) {
-        delete new_tuple;
-        new_tuple = nullptr;
         LOG_TRACE("Fail to insert new tuple. Set txn failure.");
         transaction_manager.SetTransactionResult(Result::RESULT_FAILURE);
         return false;
@@ -151,9 +149,6 @@ bool DeleteExecutor::DExecute() {
       }
 
       executor_context_->num_processed += 1;  // deleted one
-
-      delete new_tuple;
-      new_tuple = nullptr;
     } else {
       // transaction should be aborted as we cannot update the latest version.
       LOG_TRACE("Fail to update tuple. Set txn failure.");
