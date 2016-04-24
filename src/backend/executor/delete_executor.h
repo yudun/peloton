@@ -45,7 +45,7 @@ class DeleteExecutor : public AbstractExecutor {
  private:
   storage::DataTable *target_table_ = nullptr;
 
-  bool CheckDeleteForeiKeyConstraints(LogicalTile * source_tile);
+  bool CheckDeleteForeignKeyConstraints(LogicalTile * source_tile);
 
 };
 

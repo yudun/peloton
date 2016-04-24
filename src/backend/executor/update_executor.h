@@ -38,7 +38,9 @@ class UpdateExecutor : public AbstractExecutor {
   storage::DataTable *target_table_ = nullptr;
   const planner::ProjectInfo *project_info_ = nullptr;
 
-  bool CheckUpdateForeiKeyConstraints(LogicalTile * source_tile);
+  bool CheckUpdateNonReferencedConstraints(oid_t old_physical_tuple_id, storage::Tuple* new_tuple);
+
+  bool CheckUpdateForeignKeyConstraints(oid_t old_physical_tuple_id, storage::Tuple* new_tuple);
 };
 
 }  // namespace executor

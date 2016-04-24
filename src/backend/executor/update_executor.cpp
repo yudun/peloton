@@ -80,14 +80,6 @@ bool UpdateExecutor::DExecute() {
   auto &transaction_manager =
       concurrency::TransactionManagerFactory::GetInstance();
 
-  // Check all the foreign key constraints referencing this table
-  // and perform possible cascading action
-  auto res = CheckUpdateForeiKeyConstraints(source_tile.get());
-  if (!res) {
-    transaction_manager.SetTransactionResult(RESULT_FAILURE);
-    return res;
-  }
-
   // Update tuples in given table
   for (oid_t visible_tuple_id : *source_tile) {
     oid_t physical_tuple_id = pos_lists[0][visible_tuple_id];
@@ -107,6 +99,29 @@ bool UpdateExecutor::DExecute() {
       // Execute the projections
       project_info_->Evaluate(new_tuple.get(), &old_tuple, nullptr,
                               executor_context_);
+      LOG_INFO("inplace update %s", new_tuple->GetInfo().c_str());
+
+      {
+        // Because this is a inplace update, we check all the "non-referenced" constraints
+        // here rather than in "InsertVersion" function.
+        // These constraints include not null, primary, unique, check, and
+        // if updated tuple satisfies the foreign key constraint for this table
+        auto res = CheckUpdateNonReferencedConstraints(physical_tuple_id, new_tuple.get());
+        if (!res) {
+          transaction_manager.SetTransactionResult(RESULT_FAILURE);
+          return res;
+        }
+
+        // Check all the foreign key constraints referencing this tuple
+        // and perform possible cascading action
+        res = CheckUpdateForeignKeyConstraints(physical_tuple_id, new_tuple.get());
+        if (!res) {
+          transaction_manager.SetTransactionResult(RESULT_FAILURE);
+          return res;
+        }
+      }
+
+      // Perform inplace update physically
       tile_group->CopyTuple(new_tuple.get(), physical_tuple_id);
 
       transaction_manager.PerformUpdate(tile_group_id, physical_tuple_id);
@@ -134,6 +149,8 @@ bool UpdateExecutor::DExecute() {
       project_info_->Evaluate(new_tuple.get(), &old_tuple, nullptr,
                               executor_context_);
 
+      LOG_INFO("insert version update %s", new_tuple->GetInfo().c_str());
+
       // finally insert updated tuple into the table
       ItemPointer location = target_table_->InsertVersion(new_tuple.get());
 
@@ -145,6 +162,17 @@ bool UpdateExecutor::DExecute() {
         transaction_manager.SetTransactionResult(Result::RESULT_FAILURE);
         return false;
       }
+
+      {
+        // Check all the foreign key constraints referencing this tuple
+        // and perform possible cascading action
+        auto res = CheckUpdateForeignKeyConstraints(physical_tuple_id, new_tuple.get());
+        if (!res) {
+          transaction_manager.SetTransactionResult(RESULT_FAILURE);
+          return res;
+        }
+      }
+
       transaction_manager.PerformUpdate(tile_group_id, physical_tuple_id,
                                         location);
 
@@ -160,12 +188,29 @@ bool UpdateExecutor::DExecute() {
 }
 
 /**
+ * @brief Check all the none foreign key constraint for a updated tuple.
+ * @param old_physical_tuple_id the physical id for the old tuple
+ *        new_tuple the updated new tuple
+ * @return true if all the non foreign key constraints are satistfied for this new tuple
+ */
+bool UpdateExecutor::CheckUpdateNonReferencedConstraints(__attribute__((unused)) oid_t old_physical_tuple_id,
+                                                       __attribute__((unused)) storage::Tuple* new_tuple) {
+  // TODO
+  return true;
+}
+
+/**
  * @brief Check the foreign key constraints for update.
  *  It will perform proper action according to the UpdateAction type of each foreign key constraints
- * @param source_tile the logical tile which contain all the tuple to be updated
+ * @param old_physical_tuple_id the physical id for the old tuple
+ *        new_tuple the updated new tuple
  * @return true if all the foreign key constraints' action are succeefully perform for this update
  */
-bool UpdateExecutor::CheckUpdateForeiKeyConstraints(__attribute__((unused)) LogicalTile * source_tile) {
+bool UpdateExecutor::CheckUpdateForeignKeyConstraints(__attribute__((unused)) oid_t old_physical_tuple_id,
+                                                    __attribute__((unused)) storage::Tuple* new_tuple) {
+
+
+
   return true;
 }
 

@@ -93,7 +93,7 @@ bool DeleteExecutor::DExecute() {
 
   // Check all the foreign key constraints referencing this table
   // and perform possible cascading action
-  auto res = CheckDeleteForeiKeyConstraints(source_tile.get());
+  auto res = CheckDeleteForeignKeyConstraints(source_tile.get());
   if (!res) {
     transaction_manager.SetTransactionResult(RESULT_FAILURE);
     return res;
@@ -168,7 +168,7 @@ bool DeleteExecutor::DExecute() {
  * @param source_tile the logical tile which contain all the tuple to be deleted
  * @return true if all the foreign key constraints' action are succeefully perform for this deletion
  */
-bool DeleteExecutor::CheckDeleteForeiKeyConstraints(LogicalTile * source_tile) {
+bool DeleteExecutor::CheckDeleteForeignKeyConstraints(LogicalTile * source_tile) {
   // get the number of foreign key constraints that reference this table
   oid_t referedFKNum = target_table_->GetReferedForeignKeyCount();
 
