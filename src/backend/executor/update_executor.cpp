@@ -85,20 +85,23 @@ bool UpdateExecutor::DExecute() {
     oid_t physical_tuple_id = pos_lists[0][visible_tuple_id];
 
     LOG_INFO("update tuple in table %s", target_table_->GetName().c_str());
-    LOG_TRACE("Visible Tuple id : %lu, Physical Tuple id : %lu ",
+
+    ItemPointer old_location(tile_group_id, physical_tuple_id);
+
+    LOG_TRACE("Visible Tuple id : %u, Physical Tuple id : %u ",
               visible_tuple_id, physical_tuple_id);
 
     if (transaction_manager.IsOwner(tile_group_header, physical_tuple_id) ==
         true) {
       // if the thread is the owner of the tuple, then directly update in place.
-      std::unique_ptr<storage::Tuple> new_tuple(
-          new storage::Tuple(target_table_->GetSchema(), true));
+      std::unique_ptr<storage::Tuple> new_tuple(new storage::Tuple(target_table_->GetSchema(), true));
       // Make a copy of the original tuple and allocate a new tuple
       expression::ContainerTuple<storage::TileGroup> old_tuple(
           tile_group, physical_tuple_id);
       // Execute the projections
       project_info_->Evaluate(new_tuple.get(), &old_tuple, nullptr,
                               executor_context_);
+
       LOG_INFO("inplace update %s", new_tuple->GetInfo().c_str());
 
       {
@@ -124,8 +127,7 @@ bool UpdateExecutor::DExecute() {
       // Perform inplace update physically
       tile_group->CopyTuple(new_tuple.get(), physical_tuple_id);
 
-      transaction_manager.PerformUpdate(tile_group_id, physical_tuple_id);
-
+      transaction_manager.PerformUpdate(old_location);
     } else if (transaction_manager.IsOwnable(tile_group_header,
                                              physical_tuple_id) == true) {
       // if the tuple is not owned by any transaction and is visible to current
@@ -139,8 +141,7 @@ bool UpdateExecutor::DExecute() {
       }
       // if it is the latest version and not locked by other threads, then
       // insert a new version.
-      std::unique_ptr<storage::Tuple> new_tuple(
-          new storage::Tuple(target_table_->GetSchema(), true));
+      std::unique_ptr<storage::Tuple> new_tuple(new storage::Tuple(target_table_->GetSchema(), true));
 
       // Make a copy of the original tuple and allocate a new tuple
       expression::ContainerTuple<storage::TileGroup> old_tuple(
@@ -152,12 +153,12 @@ bool UpdateExecutor::DExecute() {
       LOG_INFO("insert version update %s", new_tuple->GetInfo().c_str());
 
       // finally insert updated tuple into the table
-      ItemPointer location = target_table_->InsertVersion(new_tuple.get());
+      ItemPointer new_location = target_table_->InsertVersion(new_tuple.get());
 
       // FIXME: PerformUpdate() will not be executed if the insertion failed,
       // There is a write lock, acquired, but since it is not in the write set,
       // the acquired lock can't be released when the txn is aborted.
-      if (location.IsNull() == true) {
+      if (new_location.IsNull() == true) {
         LOG_TRACE("Fail to insert new tuple. Set txn failure.");
         transaction_manager.SetTransactionResult(Result::RESULT_FAILURE);
         return false;
@@ -173,8 +174,9 @@ bool UpdateExecutor::DExecute() {
         }
       }
 
-      transaction_manager.PerformUpdate(tile_group_id, physical_tuple_id,
-                                        location);
+      LOG_INFO("perform update old location: %u, %u", old_location.block, old_location.offset);
+      LOG_INFO("perform update new location: %u, %u", new_location.block, new_location.offset);
+      transaction_manager.PerformUpdate(old_location, new_location);
 
       executor_context_->num_processed += 1;  // updated one
     } else {

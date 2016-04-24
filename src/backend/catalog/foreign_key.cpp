@@ -153,7 +153,8 @@ bool ForeignKey::IsTupleInSinkTable(storage::DataTable* sink_table, const storag
         break;
       }
 
-      auto locations = index->ScanKey(key.get());
+      std::vector<ItemPointer> locations;
+      index->ScanKey(key.get(), locations);
 
       auto &transaction_manager =
           concurrency::TransactionManagerFactory::GetInstance();
@@ -228,7 +229,8 @@ bool ForeignKey::IsDeletedTupleReferencedBySourceTable(storage::DataTable* sourc
 
   LOG_INFO("Check restrict foreign key: %s", key->GetInfo().c_str());
   // search this key in the source table's index
-  auto locations = fk_index->ScanKey(key.get());
+  std::vector<ItemPointer> locations;
+  fk_index->ScanKey(key.get(), locations);
 
   auto &transaction_manager =
       concurrency::TransactionManagerFactory::GetInstance();
