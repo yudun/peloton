@@ -14,6 +14,7 @@
 #include "backend/gc/gc_manager.h"
 #include "backend/index/index.h"
 #include "backend/concurrency/transaction_manager_factory.h"
+#include "backend/concurrency/transaction_manager.h"
 namespace peloton {
 namespace gc {
 
@@ -36,9 +37,44 @@ void GCManager::StopGC() {
   this->gc_thread_->join();
 }
 
+void GCManager::RefurbishTuple(TupleMetadata tuple_metadata) {
+  auto &manager = catalog::Manager::GetInstance();
+  auto tile_group_header =
+    manager.GetTileGroup(tuple_metadata.tile_group_id)->GetHeader();
+
+  tile_group_header->SetTransactionId(tuple_metadata.tuple_slot_id,
+      INVALID_TXN_ID);
+  tile_group_header->SetBeginCommitId(tuple_metadata.tuple_slot_id,
+      MAX_CID);
+  tile_group_header->SetEndCommitId(tuple_metadata.tuple_slot_id,
+      MAX_CID);
+
+  std::shared_ptr<LockfreeQueue<TupleMetadata>> free_list;
+
+  // if the entry for table_id exists.
+  if (free_map_.find(tuple_metadata.table_id, free_list) ==
+      true) {
+    // if the entry for tuple_metadata.table_id exists.
+    free_list->Push(tuple_metadata);
+  } else {
+    // if the entry for tuple_metadata.table_id does not exist.
+    free_list.reset(new LockfreeQueue<TupleMetadata>(MAX_TUPLES_PER_GC));
+    free_list->Push(tuple_metadata);
+    free_map_[tuple_metadata.table_id] = free_list;
+  }
+}
+
+// GC for epoch based co-operative scheme
+void GCManager::PerformGC(Epoch *e) {
+  TupleMetadata tuple_metadata;
+  while(e->possibly_free_list_.Pop(tuple_metadata)) {
+    RefurbishTuple(tuple_metadata);
+  }
+}
+
 void GCManager::PerformGC() {
   // Check if we can move anything from the possibly free list to the free list.
-  auto &manager = catalog::Manager::GetInstance();
+  // auto &manager = catalog::Manager::GetInstance();
 
   while (true) {
     LOG_DEBUG("Polling GC thread...");
@@ -59,6 +95,8 @@ void GCManager::PerformGC() {
         }
 
         if (tuple_metadata.tuple_end_cid < max_cid) {
+          RefurbishTuple(tuple_metadata);
+#if 0
           // Now that we know we need to recycle tuple, we need to delete all
           // tuples from the indexes to which it belongs as well.
 
@@ -89,7 +127,7 @@ void GCManager::PerformGC() {
             free_list->Push(tuple_metadata);
             free_map_[tuple_metadata.table_id] = free_list;
           }
-
+#endif
         } else {
           // if a tuple can't be reaped, add it back to the list.
           possibly_free_list_.Push(tuple_metadata);
@@ -115,14 +153,17 @@ void GCManager::RecycleTupleSlot(const oid_t &table_id, const oid_t &tile_group_
   if (this->gc_type_ == GC_TYPE_OFF) {
     return;
   }
-  
   TupleMetadata tuple_metadata;
   tuple_metadata.table_id = table_id;
   tuple_metadata.tile_group_id = tile_group_id;
   tuple_metadata.tuple_slot_id = tuple_id;
   tuple_metadata.tuple_end_cid = tuple_end_cid;
 
-  possibly_free_list_.Push(tuple_metadata);
+  if (this->gc_type_ == GC_TYPE_EPOCH) {
+    peloton::concurrency::current_epoch->AddToPossiblyFreeList(tuple_metadata);
+  } else {
+    possibly_free_list_.Push(tuple_metadata);
+  }
 }
 
 

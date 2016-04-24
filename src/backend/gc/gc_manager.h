@@ -18,6 +18,7 @@
 #include "backend/common/types.h"
 #include "backend/common/lockfree_queue.h"
 #include "backend/common/logger.h"
+#include "backend/common/epoch.h"
 #include "libcuckoo/cuckoohash_map.hh"
 
 namespace peloton {
@@ -46,7 +47,11 @@ class GCManager {
   // Get status of whether GC thread is running or not
   bool GetStatus() { return this->is_running_; }
 
+  // Get GCType
+  GCType GetGCType() { return this->gc_type_; }
+
   void PerformGC();
+  void PerformGC(Epoch *e);
   void StartGC();
   void StopGC();
 
@@ -69,6 +74,7 @@ class GCManager {
   cuckoohash_map<oid_t, std::shared_ptr<LockfreeQueue<TupleMetadata>>> free_map_;
   std::unique_ptr<std::thread> gc_thread_;
 
+  void RefurbishTuple(const TupleMetadata tuple_metadata);
 };
 
 }  // namespace gc

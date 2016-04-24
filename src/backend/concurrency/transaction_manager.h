@@ -26,6 +26,7 @@
 #include "backend/expression/container_tuple.h"
 #include "backend/storage/tuple.h"
 #include "backend/gc/gc_manager_factory.h"
+#include "backend/common/epoch.h"
 
 #include "libcuckoo/cuckoohash_map.hh"
 
@@ -33,6 +34,7 @@ namespace peloton {
 namespace concurrency {
 
 extern thread_local Transaction *current_txn;
+extern thread_local Epoch *current_epoch;
 
 #define RUNNING_TXN_BUCKET_NUM 10
 
@@ -49,6 +51,8 @@ class TransactionManager {
   txn_id_t GetNextTransactionId() { return next_txn_id_++; }
 
   cid_t GetNextCommitId() { return next_cid_++; }
+
+  oid_t GetNextEpochId() { return next_epoch_id_++; }
 
   virtual bool IsVisible(
       const storage::TileGroupHeader *const tile_group_header,
@@ -187,11 +191,36 @@ class TransactionManager {
   // precise value.
   virtual cid_t GetMaxCommittedCid() = 0;
 
+  bool PerformEpochCAS(oid_t old_val, oid_t new_val) {
+    return smallest_epoch_cleaned_.compare_exchange_strong(old_val, new_val);
+  }
+
+  oid_t GetSmallestEpochCleaned() { return smallest_epoch_cleaned_; }
+
+  oid_t GetCurrentEpochId() { return next_epoch_id_; }
+
+  Epoch * GetEpoch(oid_t e) {
+    Epoch *epoch = nullptr;
+    if(epoch_map_.find(e, epoch)) {
+      return epoch;
+    }
+    return nullptr;
+  }
+
+  void EraseEpoch(oid_t e) {
+    epoch_map_.erase(e);
+  }
+
+  void AddEpochToMap(cid_t key, Epoch *e) {
+    epoch_map_[key] = e;
+  }
+
  private:
   std::atomic<txn_id_t> next_txn_id_;
   std::atomic<cid_t> next_cid_;
-
-
+  std::atomic<oid_t> next_epoch_id_;
+  std::atomic<oid_t> smallest_epoch_cleaned_;
+  cuckoohash_map<cid_t, Epoch *> epoch_map_;
 };
 }  // End storage namespace
 }  // End peloton namespace

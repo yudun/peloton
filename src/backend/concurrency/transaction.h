@@ -22,6 +22,7 @@
 #include "backend/common/printable.h"
 #include "backend/common/types.h"
 #include "backend/common/exception.h"
+#include "backend/common/epoch.h"
 
 namespace peloton {
 namespace concurrency {

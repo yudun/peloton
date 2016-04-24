@@ -95,10 +95,8 @@ void ThreadManager::Invoke() {
     // end scope
 
     // Execute the task.
-    // join
     task();
     if(gc::GCManagerFactory::GetGCType() == GC_TYPE_COOPERATIVE) {
-      // after task check if GC needs to be done.
       gc::GCManagerFactory::GetInstance().PerformGC();
     }
 

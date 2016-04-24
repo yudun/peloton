@@ -105,6 +105,11 @@ class SpeculativeReadTxnManager : public TransactionManager {
   virtual Transaction *BeginTransaction() {
     txn_id_t txn_id = GetNextTransactionId();
     cid_t begin_cid = GetNextCommitId();
+    oid_t epoch_id = GetNextEpochId();
+
+    current_epoch = new Epoch(epoch_id);
+    current_epoch->Join();
+
     Transaction *txn = new Transaction(txn_id, begin_cid);
     current_txn = txn;
     spec_txn_context.SetBeginCid(begin_cid);
@@ -124,6 +129,16 @@ class SpeculativeReadTxnManager : public TransactionManager {
       assert(false);
     }
     spec_txn_context.Clear();
+
+    // order is important - first add to map, then call Leave();
+    AddEpochToMap(current_txn->GetEndCommitId(), current_epoch);
+    current_epoch->Leave();
+    if(GetCurrentEpochId() > current_epoch->GetEpochId()) {
+      // some thread has deleted performed GC on current epoch
+      // so it is safe to delete the object
+      delete current_epoch;
+    }
+    current_epoch = nullptr;
 
     delete current_txn;
     current_txn = nullptr;
