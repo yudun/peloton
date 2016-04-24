@@ -289,5 +289,20 @@ bool Schema::SetNotNull(Constraint constraint){
   return false;
 }
 
+bool Schema::ExistConstrain(Constraint constraint){
+
+  oid_t total_column = GetColumnCount();
+
+  for (oid_t column_itr = 0; column_itr < total_column; column_itr++) {
+    if(GetColumn(column_itr).column_name.compare(constraint.GetName())==0){
+      for(oid_t con_iter = 0; con_iter < columns[column_itr].constraints.size(); con_iter++){
+         if(columns[column_itr].constraints[con_iter].GetType() == constraint.GetType())
+           return true;
+      }
+    }
+  }
+  return false;
+}
+
 }  // End catalog namespace
 }  // End peloton namespace

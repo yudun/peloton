@@ -60,7 +60,7 @@ class DDLTable {
   static bool DropNotNull(Oid relation_oid, char *connname);
   static bool SetNotNull(Oid relation_oid, char *conname);
   static bool CheckNullExist(storage::DataTable* targetTable, std::string column_name);
-  static bool AddConstraint(Oid relation_oid, Constraint *constraint);
+  static bool AddConstraint(Oid relation_oid, Constraint *constraint, char* name);
 };
 
 }  // namespace bridge

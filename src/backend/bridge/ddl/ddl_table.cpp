@@ -212,14 +212,19 @@ bool DDLTable::AlterTable(Oid relation_oid, AlterTableStmt *Astmt) {
   ListCell *lcmd;
   foreach (lcmd, Astmt->cmds) {
     AlterTableCmd *cmd = (AlterTableCmd *)lfirst(lcmd);
-
+    LOG_INFO("subtype = %d",cmd->subtype);
     switch (cmd->subtype) {
       // case AT_AddColumn:  /* add column */
       // case AT_DropColumn:  /* drop column */
-
+      case AT_AddIndex:
+      {
+        LOG_INFO("ADD CONSTRAIN UNIQUE");
+        break;
+      }
       case AT_AddConstraint: /* ADD CONSTRAINT */
       {
-        bool status = AddConstraint(relation_oid, (Constraint *)cmd->def);
+         LOG_INFO("ADD CONSTRAIN");
+        bool status = AddConstraint(relation_oid, (Constraint *)cmd->def, cmd->name);
 
         if (status == false) {
           LOG_WARN("Failed to add constraint");
@@ -297,7 +302,7 @@ bool DDLTable::DropTable(Oid table_oid) {
  * @param constraint constraint
  * @return true if we add the constraint, false otherwise
  */
-bool DDLTable::AddConstraint(Oid relation_oid, Constraint *constraint) {
+bool DDLTable::AddConstraint(Oid relation_oid, Constraint *constraint, char* name) {
   ConstraintType contype = PostgresConstraintTypeToPelotonConstraintType(
       (PostgresConstraintType)constraint->contype);
   std::vector<catalog::ForeignKey> foreign_keys;
@@ -357,8 +362,13 @@ bool DDLTable::AddConstraint(Oid relation_oid, Constraint *constraint) {
           CharToForeignKeyActionType(constraint->fk_upd_action),
           CharToForeignKeyActionType(constraint->fk_del_action), conname);
       foreign_keys.push_back(*foreign_key);
+      break;
+    }
+    case CONSTRAINT_TYPE_UNIQUE:{
+      LOG_INFO("ADD CONSTRAIN UNIQUE, NAME = %s",name);
+      break;
 
-    } break;
+    }
     default:
       LOG_WARN("Unrecognized constraint type %d", (int)contype);
       break;
@@ -421,15 +431,17 @@ bool DDLTable::SetNotNull(Oid relation_oid, char* conname){
     } else {
       constrain_name = "";
     }
+
+    catalog::Schema* targetSchema = targetTable->GetSchema();
+    catalog::Constraint tmp_constraint = catalog::Constraint(CONSTRAINT_TYPE_NOTNULL,
+                                                           constrain_name);
+    if( targetSchema->ExistConstrain(tmp_constraint) )
+       return true;
     bool ExistNull = DDLTable::CheckNullExist(targetTable, constrain_name);
     if( ExistNull ){
        throw ConstraintException("NULL ALREADY EXISTED IN COLUMN "+constrain_name);
        return false;
     }
-   
-    catalog::Schema* targetSchema = targetTable->GetSchema();
-    catalog::Constraint tmp_constraint = catalog::Constraint(CONSTRAINT_TYPE_NOTNULL,
-                                                           constrain_name);
     bool status = targetSchema->SetNotNull( tmp_constraint );
     return status;
 }
@@ -510,3 +522,4 @@ bool DDLTable::SetReferenceTables(
 
 }  // namespace bridge
 }  // namespace peloton
+

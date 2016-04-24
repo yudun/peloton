@@ -76,6 +76,7 @@ class Schema : public Printable {
   // Drop Not Null constrains
   bool DropNotNull(Constraint constraint);
   bool SetNotNull(Constraint constraint);
+  bool ExistConstrain(Constraint constraint);
 
   // Compare two schemas
   bool operator==(const Schema &other) const;
