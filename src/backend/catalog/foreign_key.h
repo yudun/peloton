@@ -81,28 +81,37 @@ class ForeignKey {
 
   std::string &GetConstraintName() { return fk_name; }
 
+
  public:
+  bool IsTupleInSinkTable(storage::DataTable* sink_table, const storage::Tuple* tuple);
+
   bool CheckDeleteConstraints(executor::ExecutorContext *executor_context,
                               std::vector<storage::Tuple>& tuples);
 
-  bool IsTupleInSinkTable(storage::DataTable* sink_table, const storage::Tuple* tuple);
+  bool CheckUpdateConstraints(executor::ExecutorContext *executor_context,
+                              storage::Tuple *old_tuple,
+                              storage::Tuple *new_tuple);
 
  private:
   expression::ComparisonExpression<expression::CmpEq> *MakePredicate(
-      storage::Tuple& cur_tuple);
+      storage::Tuple* cur_tuple);
 
-  bool IsDeletedTupleReferencedBySourceTable(storage::DataTable* source_table,
+  bool IsTupleReferencedBySourceTable(storage::DataTable* source_table,
                                              index::Index* fk_index,
-                                             storage::Tuple& cur_tuple);
+                                             storage::Tuple* cur_tuple);
 
   bool DeleteReferencingTupleOnCascading(executor::ExecutorContext *executor_context,
                                          storage::DataTable* source_table,
-                                         storage::Tuple& cur_tuple);
+                                         storage::Tuple* cur_tuple);
 
-  bool SetNullReferencingTupleOnCascading(executor::ExecutorContext *executor_context,
-                                          storage::DataTable* source_table,
-                                          storage::Tuple& cur_tuple,
-                                          std::vector<oid_t>& direct_map_column_offsets);
+  bool HaveTheSameForeignKey(storage::Tuple *old_tuple, storage::Tuple *new_tuple);
+
+
+  bool UpdateReferencingTupleOnCascading(executor::ExecutorContext *executor_context,
+                                         storage::DataTable *source_table,
+                                         storage::Tuple* old_tuple,
+                                         std::vector<oid_t> &direct_map_column_offsets,
+                                         storage::Tuple* new_tuple);
  private:
   oid_t src_table_id = INVALID_OID;
   oid_t sink_table_id = INVALID_OID;

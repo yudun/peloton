@@ -109,7 +109,7 @@ bool UpdateExecutor::DExecute() {
         // here rather than in "InsertVersion" function.
         // These constraints include not null, primary, unique, check, and
         // if updated tuple satisfies the foreign key constraint for this table
-        auto res = CheckUpdateNonReferencedConstraints(physical_tuple_id, new_tuple.get());
+        auto res = CheckUpdateNonReferencedConstraints(tile, physical_tuple_id, new_tuple.get());
         if (!res) {
           transaction_manager.SetTransactionResult(RESULT_FAILURE);
           return res;
@@ -117,7 +117,7 @@ bool UpdateExecutor::DExecute() {
 
         // Check all the foreign key constraints referencing this tuple
         // and perform possible cascading action
-        res = CheckUpdateForeignKeyConstraints(physical_tuple_id, new_tuple.get());
+        res = CheckUpdateForeignKeyConstraints(tile, physical_tuple_id, new_tuple.get());
         if (!res) {
           transaction_manager.SetTransactionResult(RESULT_FAILURE);
           return res;
@@ -167,7 +167,7 @@ bool UpdateExecutor::DExecute() {
       {
         // Check all the foreign key constraints referencing this tuple
         // and perform possible cascading action
-        auto res = CheckUpdateForeignKeyConstraints(physical_tuple_id, new_tuple.get());
+        auto res = CheckUpdateForeignKeyConstraints(tile, physical_tuple_id, new_tuple.get());
         if (!res) {
           transaction_manager.SetTransactionResult(RESULT_FAILURE);
           return res;
@@ -190,13 +190,14 @@ bool UpdateExecutor::DExecute() {
 }
 
 /**
- * @brief Check all the none foreign key constraint for a updated tuple.
+ * @brief Check all the non-referenced key constraint for a updated tuple.
  * @param old_physical_tuple_id the physical id for the old tuple
  *        new_tuple the updated new tuple
  * @return true if all the non foreign key constraints are satistfied for this new tuple
  */
-bool UpdateExecutor::CheckUpdateNonReferencedConstraints(__attribute__((unused)) oid_t old_physical_tuple_id,
-                                                       __attribute__((unused)) storage::Tuple* new_tuple) {
+bool UpdateExecutor::CheckUpdateNonReferencedConstraints(__attribute__((unused)) storage::Tile *tile,
+                                                         __attribute__((unused)) oid_t old_physical_tuple_id,
+                                                         __attribute__((unused)) storage::Tuple* new_tuple) {
   // TODO
   return true;
 }
@@ -208,10 +209,26 @@ bool UpdateExecutor::CheckUpdateNonReferencedConstraints(__attribute__((unused))
  *        new_tuple the updated new tuple
  * @return true if all the foreign key constraints' action are succeefully perform for this update
  */
-bool UpdateExecutor::CheckUpdateForeignKeyConstraints(__attribute__((unused)) oid_t old_physical_tuple_id,
-                                                    __attribute__((unused)) storage::Tuple* new_tuple) {
+bool UpdateExecutor::CheckUpdateForeignKeyConstraints(storage::Tile *tile,
+                                                      oid_t old_physical_tuple_id,
+                                                      storage::Tuple* new_tuple) {
+// get the number of foreign key constraints that reference this table
+  oid_t referedFKNum = target_table_->GetReferedForeignKeyCount();
 
+  if (referedFKNum > 0) {
+    // Get the physical base tuple list
+    // so that we can check all columns to ensure different foreign key constraints
+    std::unique_ptr<storage::Tuple> old_tuple(new storage::Tuple(tile->GetSchema(),
+                                              tile->GetTupleLocation(old_physical_tuple_id)));
 
+    for (oid_t i = 0; i < referedFKNum; ++i) {
+      // get the current foreign key constraints to be checked
+      auto foreign_key = target_table_->GetRefferedForeignKey(i);
+      // if any foreign key constraint is violated, return false
+      if (!foreign_key->CheckUpdateConstraints(executor_context_, old_tuple.get(), new_tuple))
+        return false;
+    }
+  }
 
   return true;
 }

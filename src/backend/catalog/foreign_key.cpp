@@ -57,7 +57,7 @@ bool ForeignKey::CheckDeleteConstraints(executor::ExecutorContext *executor_cont
 
       for (storage::Tuple cur_tuple : tuples) {
         // check each base tuple to see whether it violate the restrict foreign key constraint
-        bool res = IsDeletedTupleReferencedBySourceTable(source_table, fk_index, cur_tuple);
+        bool res = IsTupleReferencedBySourceTable(source_table, fk_index, &cur_tuple);
 
         // if visible key exist in the referencing column
         if (res) {
@@ -67,8 +67,8 @@ bool ForeignKey::CheckDeleteConstraints(executor::ExecutorContext *executor_cont
       }
 
       if (isReferenced) {
-        LOG_WARN("ForeignKey constraint violated: RESTRICT - Deleted tuple appears in referencing table %s",
-                 source_table->GetName().c_str());
+        LOG_WARN("ForeignKey constraint violated: RESTRICT - Deleted tuple appears in "
+                     "referencing table %s", source_table->GetName().c_str());
         return false;
       }
     }
@@ -78,7 +78,7 @@ bool ForeignKey::CheckDeleteConstraints(executor::ExecutorContext *executor_cont
       for (storage::Tuple cur_tuple : tuples) {
         // cascading delete associated tuples in the source table
         bool res = DeleteReferencingTupleOnCascading(executor_context,
-                                                     source_table, cur_tuple);
+                                                     source_table, &cur_tuple);
 
         if (!res)
           return false;
@@ -101,11 +101,97 @@ bool ForeignKey::CheckDeleteConstraints(executor::ExecutorContext *executor_cont
       }
 
       for (storage::Tuple cur_tuple : tuples) {
-        // cascading delete associated tuples in the source table
-        bool res = SetNullReferencingTupleOnCascading(executor_context,
-                                                      source_table, cur_tuple,
-                                                      direct_map_column_offsets);
+        // cascading set associated tuples in the source table as null
+        bool res = UpdateReferencingTupleOnCascading(executor_context,
+                                                     source_table, &cur_tuple,
+                                                     direct_map_column_offsets,
+                                                     nullptr);
 
+        if (!res)
+          return false;
+      }
+    }
+      break;
+    case FOREIGNKEY_ACTION_SETDEFAULT:
+      break;
+    default:
+    LOG_ERROR("Invalid logging_type :: %d", fk_delete_action);
+      exit(EXIT_FAILURE);
+  }
+
+  return true;
+}
+
+
+/**
+ * @brief Check this foreign key constraint for updating from old_tuple to new_tuple.
+ *        It will perform proper action according to the UpdateAction type of this
+ *        foreign key constraint
+ * @param executor_context the context of this deletion
+ *        old_tuple the tuple to be update
+ *        new_tuple the tuple updated from old_tuple
+ * @return true if all the foreign key constraints' action are succeefully perform for this update
+ */
+bool ForeignKey::CheckUpdateConstraints(executor::ExecutorContext *executor_context,
+                                        storage::Tuple *old_tuple,
+                                        storage::Tuple *new_tuple) {
+
+  // if the old tuple and the new tuple have the same values on this
+  // foreign key columns, we skip this foreign key check.
+  if (HaveTheSameForeignKey(old_tuple, new_tuple))
+    return true;
+
+  // get the source table
+  oid_t database_oid = bridge::Bridge::GetCurrentDatabaseOid();
+  auto &manager = catalog::Manager::GetInstance();
+  auto source_table = manager.GetTableWithOid(database_oid, src_table_id);
+  assert(source_table);
+
+  // decide what kind of delete action to take
+  switch (fk_update_action) {
+    case FOREIGNKEY_ACTION_NOACTION:
+    case FOREIGNKEY_ACTION_RESTRICT: {
+      // get the index associated with the referencing keys
+      index::Index *fk_index = source_table->GetIndexWithOid(fk_index_id);
+
+      // check if visible key exist in the referencing column
+      if (IsTupleReferencedBySourceTable(source_table, fk_index, old_tuple)) {
+        LOG_WARN("ForeignKey constraint violated: RESTRICT - Updated tuple appears in "
+                     "referencing table %s", source_table->GetName().c_str());
+        return false;
+      }
+    }
+      break;
+
+    case FOREIGNKEY_ACTION_CASCADE:
+    case FOREIGNKEY_ACTION_SETNULL: {
+      // populate the direct_map_column_offsets that doesn't contain foreign keys
+      std::vector<oid_t> direct_map_column_offsets;
+
+      oid_t source_col_num = source_table->GetSchema()->GetColumnCount();
+      for (oid_t i = 0; i < source_col_num; i++) {
+        // if this offset is not a foreign key, we add it to the direct_map list
+        if (std::find(fk_column_offsets.begin(), fk_column_offsets.end(), i)
+            == fk_column_offsets.end()) {
+          direct_map_column_offsets.push_back(i);
+        }
+      }
+
+      if (fk_update_action == FOREIGNKEY_ACTION_CASCADE) {
+        // cascading update associated tuples in the source table to new_tuple
+        bool res = UpdateReferencingTupleOnCascading(executor_context,
+                                                     source_table, old_tuple,
+                                                     direct_map_column_offsets,
+                                                     new_tuple);
+        if (!res)
+          return false;
+      }
+      else {
+        // cascading set associated tuples in the source table as null
+        bool res = UpdateReferencingTupleOnCascading(executor_context,
+                                                     source_table, old_tuple,
+                                                     direct_map_column_offsets,
+                                                     nullptr);
         if (!res)
           return false;
       }
@@ -189,16 +275,16 @@ bool ForeignKey::IsTupleInSinkTable(storage::DataTable* sink_table, const storag
  *  equals to corresponding value in "cur_tuple"
  *
  *  FIXME: we need to support creating a "AND" predicate for multiple columns
- * @param cur_tuple
+ * @param cur_tuple the tuple in the sink table that we extract constant from
  *        column_offsets These 2 are used togetehr to provide constant value in the predicate
  * @return the predicate
  */
 expression::ComparisonExpression<expression::CmpEq> *ForeignKey::MakePredicate(
-    storage::Tuple& cur_tuple) {
+    storage::Tuple* cur_tuple) {
   auto tup_val_exp = new expression::TupleValueExpression(0, fk_column_offsets[0]);
 
   auto const_val_exp = new expression::ConstantValueExpression(
-      cur_tuple.GetValue(pk_column_offsets[0]));
+      cur_tuple->GetValue(pk_column_offsets[0]));
 
   auto predicate = new expression::ComparisonExpression<expression::CmpEq>(
       EXPRESSION_TYPE_COMPARE_EQUAL, tup_val_exp, const_val_exp);
@@ -208,24 +294,24 @@ expression::ComparisonExpression<expression::CmpEq> *ForeignKey::MakePredicate(
 
 
 /**
- * @brief Check whether a tuple to be deleted has corresponding referencing tuple in the source table
+ * @brief Check whether a tuple has corresponding referencing tuple in the source table
  * @param source_table the source table
  *        fk_index the foreign key's index in the source table,
- *        cur_tuple the tuple to be delete
+ *        cur_tuple the tuple to check
  *        column_offsets foreign key's column offsets
  * @return true if the given tuple is referenced by a visible tuple in the source table
  */
-bool ForeignKey::IsDeletedTupleReferencedBySourceTable(storage::DataTable* source_table,
+bool ForeignKey::IsTupleReferencedBySourceTable(storage::DataTable* source_table,
                                                            index::Index* fk_index,
-                                                           storage::Tuple& cur_tuple) {
-  // Build referening key from this tuple to be used
+                                                           storage::Tuple* cur_tuple) {
+  // Build referencing key from this tuple to be used
   // to search the index
   std::unique_ptr<catalog::Schema>
       foreign_key_schema(catalog::Schema::CopySchema(source_table->GetSchema(),
                                                      fk_column_offsets));
   std::unique_ptr<storage::Tuple> key(new storage::Tuple(foreign_key_schema.get(), true));
 
-  key->SetFromTuple(&cur_tuple, pk_column_offsets, fk_index->GetPool());
+  key->SetFromTuple(cur_tuple, pk_column_offsets, fk_index->GetPool());
 
   LOG_INFO("Check restrict foreign key: %s", key->GetInfo().c_str());
   // search this key in the source table's index
@@ -247,7 +333,7 @@ bool ForeignKey::IsDeletedTupleReferencedBySourceTable(storage::DataTable* sourc
  */
 bool ForeignKey::DeleteReferencingTupleOnCascading(executor::ExecutorContext *executor_context,
                                                    storage::DataTable* source_table,
-                                                   storage::Tuple& cur_tuple) {
+                                                   storage::Tuple* cur_tuple) {
 
   LOG_INFO("Cascading delete foreign key offset %u in table %s",
            fk_column_offsets[0], source_table->GetName().c_str());
@@ -272,32 +358,78 @@ bool ForeignKey::DeleteReferencingTupleOnCascading(executor::ExecutorContext *ex
   return delete_executor.Execute();
 }
 
+
 /**
- * @brief Set all the tuples' corresponding foreign key as null in the referencing table in a cascade manner
- * @param table the source table
- *        cur_tuple the tuple to be delete
- *        column_offsets foreign key's column offsets
- *        direct_map_column_offsets those column offsets who are not foreign key
- * @return true if cascade set null success
+ * @brief if the old tuple and the new tuple have the same value on this foreign key columns
+ * @param old_tuple the old tuple
+ *        new_tuple the new tuple
+ * @return true if old_tuple and new_tuple are the same on this foreign key
  */
-bool ForeignKey::SetNullReferencingTupleOnCascading(executor::ExecutorContext *executor_context,
-                                                    storage::DataTable* source_table,
-                                                    storage::Tuple& cur_tuple,
-                                                    std::vector<oid_t>& direct_map_column_offsets) {
-  LOG_INFO("Cascading set null foreign key offset %u in table %s",
-           fk_column_offsets[0], source_table->GetName().c_str());
+bool ForeignKey::HaveTheSameForeignKey(storage::Tuple *old_tuple, storage::Tuple *new_tuple) {
+  oid_t database_oid = bridge::Bridge::GetCurrentDatabaseOid();
+  auto &manager = catalog::Manager::GetInstance();
+  auto sink_table = manager.GetTableWithOid(database_oid, sink_table_id);
+  assert(sink_table);
+  index::Index *pk_index = sink_table->GetIndexWithOid(pk_index_id);
 
-  Value null_val = ValueFactory::GetNullValue();
+  // Build old_key from old_tuple and new_key from new_tuple
+  std::unique_ptr<catalog::Schema>
+      foreign_key_schema(catalog::Schema::CopySchema(sink_table->GetSchema(),
+                                                     pk_column_offsets));
 
+  std::unique_ptr<storage::Tuple> old_key(new storage::Tuple(foreign_key_schema.get(), true));
+  std::unique_ptr<storage::Tuple> new_key(new storage::Tuple(foreign_key_schema.get(), true));
+
+  old_key->SetFromTuple(old_tuple, pk_column_offsets, pk_index->GetPool());
+  new_key->SetFromTuple(new_tuple, pk_column_offsets, pk_index->GetPool());
+
+  return (*old_key) == (*new_key);
+}
+
+
+/**
+ * @brief Update the old_tuple corresponding foreign key in the referencing table
+ *        to the key in new_tuple in a cascade manner, if new_tuple == nullptr,
+ *        it is cascading set null
+ * @param executor_context the context of this deletion
+ *        source_table the source table
+ *        old_tuple the tuple to be updated
+ *        direct_map_column_offsets those column offsets who are not foreign key
+ *        new_tuple the tuple updated from old_tuple
+ * @return true if successfully updated
+ */
+bool ForeignKey::UpdateReferencingTupleOnCascading(executor::ExecutorContext *executor_context,
+                                                   storage::DataTable *source_table,
+                                                   storage::Tuple* old_tuple,
+                                                   std::vector<oid_t> &direct_map_column_offsets,
+                                                   storage::Tuple* new_tuple) {
   // ProjectInfo
   planner::ProjectInfo::TargetList target_list;
   planner::ProjectInfo::DirectMapList direct_map_list;
 
-  // set those columns who need to be updated as null
-  for (oid_t offset : fk_column_offsets) {
-    target_list.emplace_back(
-        offset, expression::ExpressionUtil::ConstantValueFactory(null_val));
+  if (new_tuple == nullptr) {
+    LOG_INFO("Cascading set null foreign key offset %u in table %s",
+             fk_column_offsets[0], source_table->GetName().c_str());
+
+    Value null_val = ValueFactory::GetNullValue();
+
+    // set those columns who need to be updated as null
+    for (oid_t offset : fk_column_offsets) {
+      target_list.emplace_back(
+          offset, expression::ExpressionUtil::ConstantValueFactory(null_val));
+    }
   }
+  else {
+    LOG_INFO("Cascading update foreign key offset %u in table %s",
+             fk_column_offsets[0], source_table->GetName().c_str());
+
+    for (unsigned i = 0; i < pk_column_offsets.size(); i++) {
+      target_list.emplace_back(
+          fk_column_offsets[i],
+          expression::ExpressionUtil::ConstantValueFactory(new_tuple->GetValue(pk_column_offsets[i])));
+    }
+  }
+
   // set the direct map columns, those columns doesn't need to be update
   for (oid_t offset : direct_map_column_offsets) {
     direct_map_list.emplace_back(offset, std::pair<oid_t, oid_t>(0, offset));
@@ -312,7 +444,7 @@ bool ForeignKey::SetNullReferencingTupleOnCascading(executor::ExecutorContext *e
   executor::UpdateExecutor update_executor(&update_node, executor_context);
 
   // Predicate
-  auto predicate = MakePredicate(cur_tuple);
+  auto predicate = MakePredicate(old_tuple);
 
   // Seq scan
   std::unique_ptr<planner::SeqScanPlan> seq_scan_node(
@@ -324,9 +456,11 @@ bool ForeignKey::SetNullReferencingTupleOnCascading(executor::ExecutorContext *e
   update_executor.AddChild(&seq_scan_executor);
 
   update_executor.Init();
-  return update_executor.Execute();
 
+  return update_executor.Execute();
 }
+
+
 
 }  // End catalog namespace
 }  // End peloton namespace

@@ -33,6 +33,9 @@
 #define FOREIGHN_KEY_RESTRICT_DELETE_TEST
 #define FOREIGHN_KEY_CASCADE_DELETE_TEST
 #define FOREIGHN_KEY_SETNULL_DELETE_TEST
+#define FOREIGHN_KEY_RESTRICT_UPDATE_TEST
+#define FOREIGHN_KEY_CASCADE_UPDATE_TEST
+#define FOREIGHN_KEY_SETNULL_UPDATE_TEST
 
 namespace peloton {
 namespace test {
@@ -451,6 +454,14 @@ TEST_F(ConstraintsTests, ForeignKeyTest) {
   }
 #endif
 
+#ifdef FOREIGHN_KEY_RESTRICT_UPDATE_TEST
+#endif
+
+#ifdef FOREIGHN_KEY_CASCADE_UPDATE_TEST
+#endif
+
+#ifdef FOREIGHN_KEY_SETNULL_UPDATE_TEST
+#endif
 
   // remember to drop this database from the manager, this will also indirectly delete all tables in this database
   manager.DropDatabaseWithOid(current_db_oid);
