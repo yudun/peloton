@@ -127,6 +127,7 @@ doc/
 #==============================================================================#
 .idea
 *.iml
+CMakeLists.txt
 
 #==============================================================================#
 # Code Coverage files
@@ -212,5 +213,5 @@ local.properties
 # Code Recommenders
 .recommenders/
 
-CMakeLists.txt
 io_file
+profile_log
