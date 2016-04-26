@@ -192,7 +192,7 @@ ItemPointer DataTable::InsertEmptyVersion(const storage::Tuple *tuple) {
 
 ItemPointer DataTable::InsertVersion(const storage::Tuple *tuple) {
   // First, do integrity checks and claim a slot
-  ItemPointer location = GetEmptyTupleSlot(tuple, false);
+  ItemPointer location = GetEmptyTupleSlot(tuple, true);
   if (location.block == INVALID_OID) {
     LOG_WARN("Failed to get tuple slot.");
     return INVALID_ITEMPOINTER;
