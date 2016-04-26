@@ -28,7 +28,7 @@
 #include "concurrency/transaction_tests_util.h"
 
 #define NOTNULL_TEST
-#define PRIMARY_UNIQUEKEY_TEST
+//#define PRIMARY_UNIQUEKEY_TEST
 #define FOREIGHN_KEY_INSERT_TEST
 #define FOREIGHN_KEY_RESTRICT_DELETE_TEST
 #define FOREIGHN_KEY_CASCADE_DELETE_TEST

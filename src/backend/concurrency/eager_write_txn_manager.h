@@ -166,14 +166,14 @@ class EagerWriteTxnManager : public TransactionManager {
       const storage::TileGroupHeader *const tile_group_header,
       const oid_t &tuple_id) {
     return (TxnList *)(tile_group_header->GetReservedFieldRef(tuple_id) +
-                       LIST_OFFSET);
+        LIST_OFFSET);
   }
 
   // Use to protect the reader list, not the reader count
   void GetEwReaderLock(const storage::TileGroupHeader *const tile_group_header,
                        const oid_t &tuple_id) {
     auto lock = (Spinlock *)(tile_group_header->GetReservedFieldRef(tuple_id) +
-                             LOCK_OFFSET);
+        LOCK_OFFSET);
     lock->Lock();
   }
 
@@ -181,14 +181,14 @@ class EagerWriteTxnManager : public TransactionManager {
       const storage::TileGroupHeader *const tile_group_header,
       const oid_t tuple_id) {
     auto lock = (Spinlock *)(tile_group_header->GetReservedFieldRef(tuple_id) +
-                             LOCK_OFFSET);
+        LOCK_OFFSET);
     lock->Unlock();
   }
 
-
   // Add the current txn into the reader list of a tuple
   // note: should be protected in EwReaderLock
-  void AddReader(storage::TileGroupHeader *tile_group_header, const oid_t &tuple_id) {
+  void AddReader(storage::TileGroupHeader *tile_group_header,
+                 const oid_t &tuple_id) {
     auto txn_id = current_txn->GetTransactionId();
     LOG_INFO("Add reader %lu, tuple_id = %u", txn_id, tuple_id);
 
@@ -231,11 +231,9 @@ class EagerWriteTxnManager : public TransactionManager {
     }
   }
 
-
   void RemoveReader();
 
   bool CauseDeadLock();
-
 
   std::mutex running_txn_map_mutex_;
   std::unordered_map<txn_id_t, EagerWriteTxnContext *> running_txn_map_;

@@ -76,5 +76,23 @@ bool TransactionManager::IsOccupied(const ItemPointer &position) {
   }
 }
 
+bool TransactionManager::VisibleTupleExist(std::vector<ItemPointer> & locations){
+  bool visible_tuple_exist = false;
+
+  if (locations.size() > 0) {
+    for(unsigned long i = 0; i < locations.size(); i++) {
+      auto tile_group_header = catalog::Manager::GetInstance()
+          .GetTileGroup(locations[i].block)->GetHeader();
+      auto tuple_id = locations[i].offset;
+      if (this->IsVisible(tile_group_header, tuple_id)) {
+        visible_tuple_exist = true;
+        break;
+      }
+    }
+  }
+
+  return visible_tuple_exist;
+}
+
 }  // End storage namespace
 }  // End peloton namespace
