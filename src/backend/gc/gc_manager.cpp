@@ -59,13 +59,14 @@ void GCManager::Running() {
     std::this_thread::sleep_for(
         std::chrono::milliseconds(GC_PERIOD_MILLISECONDS));
 
-    LOG_INFO("Unlink tuple thread...");
+    LOG_INFO("reclaim tuple thread...");
 
     auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
     auto max_cid = txn_manager.GetMaxCommittedCid();
 
     assert(max_cid != MAX_CID);
 
+<<<<<<< HEAD
     Reclaim(max_cid);
 
     Unlink(max_cid);
@@ -102,6 +103,46 @@ void GCManager::Reclaim(const cid_t &max_cid) {
         recycle_queue.reset(new LockfreeQueue<TupleMetadata>(MAX_QUEUE_LENGTH));
         recycle_queue->BlockingPush(tuple_metadata);
         recycle_queue_map_[tuple_metadata.table_id] = recycle_queue;
+=======
+    int tuple_counter = 0;
+
+    // every time we garbage collect at most MAX_ATTEMPT_COUNT tuples.
+    for (size_t i = 0; i < MAX_ATTEMPT_COUNT; ++i) {
+      TupleMetadata tuple_metadata;
+      // if there's no more tuples in the queue, then break.
+      if (reclaim_queue_.TryPop(tuple_metadata) == false) {
+        break;
+      }
+
+      if (tuple_metadata.tuple_end_cid < max_cid) {
+        ResetTuple(tuple_metadata);
+
+        // Add to the recycle map
+        std::shared_ptr<LockfreeQueue<TupleMetadata>> recycle_queue;
+        // if the entry for table_id exists.
+        if (recycle_queue_map_.find(tuple_metadata.table_id, recycle_queue) ==
+            true) {
+          // if the entry for tuple_metadata.table_id exists.
+          recycle_queue->BlockingPush(tuple_metadata);
+        } else {
+          // if the entry for tuple_metadata.table_id does not exist.
+          recycle_queue.reset(
+              new LockfreeQueue<TupleMetadata>(MAX_QUEUE_LENGTH));
+          bool ret =
+              recycle_queue_map_.insert(tuple_metadata.table_id, recycle_queue);
+          if (ret == true) {
+            recycle_queue->BlockingPush(tuple_metadata);
+          } else {
+            recycle_queue_map_.find(tuple_metadata.table_id, recycle_queue);
+            recycle_queue->BlockingPush(tuple_metadata);
+          }
+        }
+
+        tuple_counter++;
+      } else {
+        // if a tuple cannot be reclaimed, then add it back to the list.
+        reclaim_queue_.BlockingPush(tuple_metadata);
+>>>>>>> mvcc-cooperative-gc
       }
 
       // Remove from the original map
@@ -115,6 +156,7 @@ void GCManager::Reclaim(const cid_t &max_cid) {
   LOG_INFO("Marked %d tuples as recycled", tuple_counter);
 }
 
+<<<<<<< HEAD
 void GCManager::Unlink(const cid_t &max_cid) {
   int tuple_counter = 0;
 
@@ -145,6 +187,8 @@ void GCManager::Unlink(const cid_t &max_cid) {
   LOG_INFO("Marked %d tuples as garbage", tuple_counter);
 }
 
+=======
+>>>>>>> mvcc-cooperative-gc
 // called by transaction manager.
 void GCManager::RecycleTupleSlot(const oid_t &table_id,
                                  const oid_t &tile_group_id,
@@ -160,8 +204,13 @@ void GCManager::RecycleTupleSlot(const oid_t &table_id,
   tuple_metadata.tuple_slot_id = tuple_id;
   tuple_metadata.tuple_end_cid = tuple_end_cid;
 
+<<<<<<< HEAD
   // FIXME: what if the list is full?
   unlink_queue_.BlockingPush(tuple_metadata);
+=======
+  reclaim_queue_.BlockingPush(tuple_metadata);
+
+>>>>>>> mvcc-cooperative-gc
   LOG_INFO("Marked tuple(%u, %u) in table %u as possible garbage",
            tuple_metadata.tile_group_id, tuple_metadata.tuple_slot_id,
            tuple_metadata.table_id);
@@ -183,6 +232,7 @@ ItemPointer GCManager::ReturnFreeSlot(const oid_t &table_id) {
                tuple_metadata.tuple_slot_id, table_id);
       return ItemPointer(tuple_metadata.tile_group_id,
                          tuple_metadata.tuple_slot_id);
+<<<<<<< HEAD
     }
   }
   return ItemPointer();
@@ -244,8 +294,11 @@ void GCManager::DeleteTupleFromIndexes(const TupleMetadata &tuple_metadata) {
                            ItemPointer(tuple_metadata.tile_group_id,
                                        tuple_metadata.tuple_slot_id));
       }
+=======
+>>>>>>> mvcc-cooperative-gc
     }
   }
+  return ItemPointer();
 }
 
 }  // namespace gc
