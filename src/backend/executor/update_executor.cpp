@@ -164,21 +164,23 @@ bool UpdateExecutor::DExecute() {
         return false;
       }
 
-      {
-        // Check all the foreign key constraints referencing this tuple
-        // and perform possible cascading action
-        auto res = CheckUpdateForeignKeyConstraints(tile, physical_tuple_id, new_tuple.get());
-        if (!res) {
-          transaction_manager.SetTransactionResult(RESULT_FAILURE);
-          return res;
-        }
-      }
-
       LOG_INFO("perform update old location: %u, %u", old_location.block, old_location.offset);
       LOG_INFO("perform update new location: %u, %u", new_location.block, new_location.offset);
       transaction_manager.PerformUpdate(old_location, new_location);
 
       executor_context_->num_processed += 1;  // updated one
+
+      {
+        // Check all the foreign key constraints referencing this tuple
+        // and perform possible cascading action
+        auto res = CheckUpdateForeignKeyConstraints(tile, physical_tuple_id, new_tuple.get());
+        if (!res) {
+          LOG_INFO("update transaction fail");
+          transaction_manager.SetTransactionResult(Result::RESULT_FAILURE);
+          return res;
+        }
+      }
+
     } else {
       // transaction should be aborted as we cannot update the latest version.
       LOG_TRACE("Fail to update tuple. Set txn failure.");
@@ -212,7 +214,7 @@ bool UpdateExecutor::CheckUpdateNonReferencedConstraints(__attribute__((unused))
 bool UpdateExecutor::CheckUpdateForeignKeyConstraints(storage::Tile *tile,
                                                       oid_t old_physical_tuple_id,
                                                       storage::Tuple* new_tuple) {
-// get the number of foreign key constraints that reference this table
+  // get the number of foreign key constraints that reference this table
   oid_t referedFKNum = target_table_->GetReferedForeignKeyCount();
 
   if (referedFKNum > 0) {

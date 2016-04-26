@@ -135,7 +135,6 @@ bool ForeignKey::CheckDeleteConstraints(executor::ExecutorContext *executor_cont
 bool ForeignKey::CheckUpdateConstraints(executor::ExecutorContext *executor_context,
                                         storage::Tuple *old_tuple,
                                         storage::Tuple *new_tuple) {
-
   // if the old tuple and the new tuple have the same values on this
   // foreign key columns, we skip this foreign key check.
   if (HaveTheSameForeignKey(old_tuple, new_tuple))
@@ -371,6 +370,7 @@ bool ForeignKey::HaveTheSameForeignKey(storage::Tuple *old_tuple, storage::Tuple
   auto sink_table = manager.GetTableWithOid(database_oid, sink_table_id);
   assert(sink_table);
   index::Index *pk_index = sink_table->GetIndexWithOid(pk_index_id);
+  assert(pk_index);
 
   // Build old_key from old_tuple and new_key from new_tuple
   std::unique_ptr<catalog::Schema>
