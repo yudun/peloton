@@ -27,7 +27,7 @@ bool Epoch::Leave() {
     }
     auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
     auto max_cid = txn_manager.GetMaxCommittedCid();
-    auto smallest_epoch = txn_manager.GetSmallestEpochCleaned();
+    auto smallest_epoch = txn_manager.GetSmallestEpochCleanedCid();
     auto largest_epoch = txn_manager.GetCurrentEpochId();
 
     if(max_cid == MAX_CID) {
@@ -38,8 +38,8 @@ bool Epoch::Leave() {
         for(; smallest_epoch <= largest_epoch; smallest_epoch++) {
           Epoch *e = txn_manager.GetEpoch(smallest_epoch);
           // perform GC of this epoch's possibly free list
-          gc_manager.PerformGC(e);
           txn_manager.EraseEpoch(smallest_epoch);
+          gc_manager.PerformGC(e);
           delete e;
         }
         return true;

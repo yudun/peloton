@@ -191,13 +191,15 @@ class TransactionManager {
   // precise value.
   virtual cid_t GetMaxCommittedCid() = 0;
 
-  bool PerformEpochCAS(oid_t old_val, oid_t new_val) {
-    return smallest_epoch_cleaned_.compare_exchange_strong(old_val, new_val);
+  bool PerformEpochCAS(cid_t old_val, cid_t new_val) {
+    return cid_of_smallest_epoch_cleaned_.compare_exchange_strong(old_val, new_val);
   }
 
-  oid_t GetSmallestEpochCleaned() { return smallest_epoch_cleaned_; }
+  //oid_t GetSmallestEpochCleaned() { return smallest_epoch_cleaned_; }
 
   oid_t GetCurrentEpochId() { return next_epoch_id_; }
+
+  cid_t GetSmallestEpochCleanedCid() { return cid_of_smallest_epoch_cleaned_; }
 
   Epoch * GetEpoch(oid_t e) {
     Epoch *epoch = nullptr;
@@ -219,7 +221,7 @@ class TransactionManager {
   std::atomic<txn_id_t> next_txn_id_;
   std::atomic<cid_t> next_cid_;
   std::atomic<oid_t> next_epoch_id_;
-  std::atomic<oid_t> smallest_epoch_cleaned_;
+  std::atomic<cid_t> cid_of_smallest_epoch_cleaned_;
   cuckoohash_map<cid_t, Epoch *> epoch_map_;
 };
 }  // End storage namespace
