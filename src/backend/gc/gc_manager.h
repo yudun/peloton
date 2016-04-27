@@ -49,6 +49,7 @@ class GCManager {
 
   // Get GCType
   GCType GetGCType() { return this->gc_type_; }
+  void SetGCType(GCType gc_type) { this->gc_type_ = gc_type; }
 
   void PerformGC();
   void PerformGC(Epoch *e);
