@@ -67,27 +67,27 @@ class OptimisticTxnManager : public TransactionManager {
 
   virtual Transaction *BeginTransaction() {
     txn_id_t txn_id = GetNextTransactionId();
-    cid_t begin_cid = GetNextCommitId();
-    oid_t epoch_id = GetNextEpochId();
-
-    current_epoch = new Epoch(epoch_id);
-    current_epoch->Join();
+    {
+      running_txn_buckets_[txn_id % RUNNING_TXN_BUCKET_NUM].lock_table();
+      running_txn_buckets_[txn_id % RUNNING_TXN_BUCKET_NUM][txn_id] = GetNextCommitId();
+    }
+    cid_t begin_cid = running_txn_buckets_[txn_id % RUNNING_TXN_BUCKET_NUM][txn_id];
 
     Transaction *txn = new Transaction(txn_id, begin_cid);
     current_txn = txn;
 
-    running_txn_buckets_[txn_id % RUNNING_TXN_BUCKET_NUM][txn_id] = begin_cid;
+    current_epoch = new Epoch(current_txn->GetEndCommitId());
+    current_epoch->Join();
 
     return txn;
   }
 
   virtual void EndTransaction() {
     txn_id_t txn_id = current_txn->GetTransactionId();
-
+    AddEpochToMap(current_txn->GetBeginCommitId(), current_epoch);
     running_txn_buckets_[txn_id % RUNNING_TXN_BUCKET_NUM].erase(txn_id);
 
     // order is important - first add to map, then call Leave();
-    AddEpochToMap(current_txn->GetEndCommitId(), current_epoch);
     current_epoch->Leave();
     if(GetCurrentEpochId() > current_epoch->GetEpochId()) {
       // some thread has deleted performed GC on current epoch
@@ -105,6 +105,7 @@ class OptimisticTxnManager : public TransactionManager {
     for (size_t i = 0; i < RUNNING_TXN_BUCKET_NUM; ++i) {
       {
         auto iter = running_txn_buckets_[i].lock_table();
+        //LOG_INFO("running txn bucket %lu size = %lu", i, running_txn_buckets_[i].size());
         for (auto &it : iter) {
           if (it.second < min_running_cid) {
             min_running_cid = it.second;
@@ -112,7 +113,11 @@ class OptimisticTxnManager : public TransactionManager {
         }
       }
     }
-    assert(min_running_cid > 0 && min_running_cid != MAX_CID);
+    if(min_running_cid == MAX_CID) {
+      LOG_INFO("returning MAX_CID");
+      return MAX_CID;
+    }
+    //assert(min_running_cid > 0 && min_running_cid != MAX_CID);
     return min_running_cid - 1;
   }
 

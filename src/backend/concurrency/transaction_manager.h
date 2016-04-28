@@ -43,6 +43,7 @@ class TransactionManager {
   TransactionManager() {
     next_txn_id_ = ATOMIC_VAR_INIT(START_TXN_ID);
     next_cid_ = ATOMIC_VAR_INIT(START_CID);
+    cid_of_smallest_epoch_cleaned_ = ATOMIC_VAR_INIT(START_CID);
   }
 
   virtual ~TransactionManager() {}
@@ -197,7 +198,7 @@ class TransactionManager {
 
   //oid_t GetSmallestEpochCleaned() { return smallest_epoch_cleaned_; }
 
-  oid_t GetCurrentEpochId() { return next_epoch_id_; }
+  oid_t GetCurrentEpochId() { return next_cid_; }
 
   cid_t GetSmallestEpochCleanedCid() { return cid_of_smallest_epoch_cleaned_; }
 

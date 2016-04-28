@@ -128,12 +128,7 @@ peloton_bootstrap() {
     }
 
     // start GC as per configuration
-    auto &gc_instance = peloton::gc::GCManagerFactory::GetInstance();
-    gc_instance.StartGC();
-    //peloton::gc::GCManagerFactory::Configure(peloton_gc_mode);
-    printf("peloton gc mode is %d\n", peloton_gc_mode);
-    gc_instance.SetGCType(peloton_gc_mode);
-
+    peloton::gc::GCManagerFactory::GetInstance().StartGC();
   }
   catch(const std::exception &exception) {
     elog(ERROR, "Peloton exception :: %s", exception.what());
