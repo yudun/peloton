@@ -28,11 +28,7 @@ namespace gc {
 // GC Manager
 //===--------------------------------------------------------------------===//
 
-<<<<<<< HEAD
-#define MAX_ATTEMPT_COUNT 50000
-=======
 #define MAX_ATTEMPT_COUNT 100000
->>>>>>> mvcc-cooperative-gc
 #define MAX_QUEUE_LENGTH 100000
 
 #define GC_PERIOD_MILLISECONDS 100
@@ -45,13 +41,9 @@ class GCManager {
   GCManager &operator=(GCManager &&) = delete;
 
   GCManager(const GCType type)
-<<<<<<< HEAD
-      : is_running_(true), gc_type_(type), unlink_queue_(MAX_QUEUE_LENGTH) {
-=======
       : is_running_(true),
         gc_type_(type),
         reclaim_queue_(MAX_QUEUE_LENGTH) {
->>>>>>> mvcc-cooperative-gc
     StartGC();
   }
 
@@ -71,16 +63,7 @@ class GCManager {
 
  private:
   void Running();
-<<<<<<< HEAD
-
-  void Reclaim(const cid_t &max_cid);
-
-  void Unlink(const cid_t &max_cid);
-
-  void DeleteTupleFromIndexes(const TupleMetadata &);
-=======
   //void DeleteTupleFromIndexes(const TupleMetadata &);
->>>>>>> mvcc-cooperative-gc
 
   void ResetTuple(const TupleMetadata &);
 
@@ -93,26 +76,12 @@ class GCManager {
 
   std::unique_ptr<std::thread> gc_thread_;
 
-<<<<<<< HEAD
-  LockfreeQueue<TupleMetadata> unlink_queue_;
-=======
   // TODO: use shared pointer to reduce memory copy
   LockfreeQueue<TupleMetadata> reclaim_queue_;
->>>>>>> mvcc-cooperative-gc
 
   // TODO: use shared pointer to reduce memory copy
-<<<<<<< HEAD
-  std::multimap<cid_t, TupleMetadata> reclaim_map_;
-
-  // TODO: use shared pointer to reduce memory copy
-  // table_id -> queue
   cuckoohash_map<oid_t, std::shared_ptr<LockfreeQueue<TupleMetadata>>>
       recycle_queue_map_;
-
-=======
-  cuckoohash_map<oid_t, std::shared_ptr<LockfreeQueue<TupleMetadata>>>
-      recycle_queue_map_;
->>>>>>> mvcc-cooperative-gc
 };
 
 }  // namespace gc
