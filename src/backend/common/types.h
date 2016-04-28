@@ -17,6 +17,7 @@
 #include <climits>
 #include <limits>
 #include <cassert>
+#include "backend/common/platform.h"
 
 //===--------------------------------------------------------------------===//
 // GUC Variables
@@ -48,8 +49,7 @@ enum CheckpointType {
 
 enum GCType {
   GC_TYPE_OFF = 0,
-  GC_TYPE_VACUUM = 1,
-  GC_TYPE_COOPERATIVE = 2,
+  GC_TYPE_ON = 1
 };
 
 //===--------------------------------------------------------------------===//
@@ -717,7 +717,7 @@ enum Endianess { BYTE_ORDER_BIG_ENDIAN = 0, BYTE_ORDER_LITTLE_ENDIAN = 1 };
 // Type definitions.
 //===--------------------------------------------------------------------===//
 
-typedef uint64_t oid_t;
+typedef uint32_t oid_t;
 
 static const oid_t START_OID = 0;
 
@@ -754,7 +754,6 @@ static const cid_t MAX_CID = std::numeric_limits<cid_t>::max();
 //===--------------------------------------------------------------------===//
 struct TupleMetadata {
   oid_t table_id = 0;
-  oid_t tile_id = 0;
   oid_t tile_group_id = 0;
   oid_t tuple_slot_id = 0;
   cid_t tuple_end_cid = 0;
@@ -776,8 +775,11 @@ struct ItemPointer {
 
   ItemPointer(oid_t block, oid_t offset) : block(block), offset(offset) {}
 
-  bool IsNull() { return (block == INVALID_OID && offset == INVALID_OID); }
-};
+  bool IsNull() const { 
+    return (block == INVALID_OID && offset == INVALID_OID); 
+  }
+
+} __attribute__((__aligned__(8))) __attribute__((__packed__));
 
 extern ItemPointer INVALID_ITEMPOINTER;
 
@@ -803,6 +805,8 @@ bool IsBasedOnWriteAheadLogging(const LoggingType& logging_type);
 bool IsBasedOnWriteBehindLogging(const LoggingType& logging_type);
 
 BackendType GetBackendType(const LoggingType& logging_type);
+
+void AtomicUpdateItemPointer(ItemPointer *src_ptr, const ItemPointer &value);
 
 //===--------------------------------------------------------------------===//
 // Transformers

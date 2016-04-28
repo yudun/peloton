@@ -83,26 +83,51 @@ bool UpdateExecutor::DExecute() {
   // Update tuples in given table
   for (oid_t visible_tuple_id : *source_tile) {
     oid_t physical_tuple_id = pos_lists[0][visible_tuple_id];
-    LOG_TRACE("Visible Tuple id : %lu, Physical Tuple id : %lu ",
+
+    LOG_INFO("update tuple in table %s", target_table_->GetName().c_str());
+
+    ItemPointer old_location(tile_group_id, physical_tuple_id);
+
+    LOG_TRACE("Visible Tuple id : %u, Physical Tuple id : %u ",
               visible_tuple_id, physical_tuple_id);
 
     if (transaction_manager.IsOwner(tile_group_header, physical_tuple_id) ==
         true) {
       // if the thread is the owner of the tuple, then directly update in place.
-      storage::Tuple *new_tuple =
-          new storage::Tuple(target_table_->GetSchema(), true);
+      std::unique_ptr<storage::Tuple> new_tuple(new storage::Tuple(target_table_->GetSchema(), true));
       // Make a copy of the original tuple and allocate a new tuple
       expression::ContainerTuple<storage::TileGroup> old_tuple(
           tile_group, physical_tuple_id);
       // Execute the projections
-      project_info_->Evaluate(new_tuple, &old_tuple, nullptr,
+      project_info_->Evaluate(new_tuple.get(), &old_tuple, nullptr,
                               executor_context_);
-      tile_group->CopyTuple(new_tuple, physical_tuple_id);
 
-      transaction_manager.PerformUpdate(tile_group_id, physical_tuple_id);
-      delete new_tuple;
-      new_tuple = nullptr;
+      LOG_INFO("inplace update %s", new_tuple->GetInfo().c_str());
 
+      {
+        // Because this is a inplace update, we check all the "non-referenced" constraints
+        // here rather than in "InsertVersion" function.
+        // These constraints include not null, primary, unique, check, and
+        // if updated tuple satisfies the foreign key constraint for this table
+        auto res = CheckUpdateNonReferencedConstraints(tile, physical_tuple_id, new_tuple.get());
+        if (!res) {
+          transaction_manager.SetTransactionResult(RESULT_FAILURE);
+          return res;
+        }
+
+        // Check all the foreign key constraints referencing this tuple
+        // and perform possible cascading action
+        res = CheckUpdateForeignKeyConstraints(tile, physical_tuple_id, new_tuple.get());
+        if (!res) {
+          transaction_manager.SetTransactionResult(RESULT_FAILURE);
+          return res;
+        }
+      }
+
+      // Perform inplace update physically
+      tile_group->CopyTuple(new_tuple.get(), physical_tuple_id);
+
+      transaction_manager.PerformUpdate(old_location);
     } else if (transaction_manager.IsOwnable(tile_group_header,
                                              physical_tuple_id) == true) {
       // if the tuple is not owned by any transaction and is visible to current
@@ -116,36 +141,46 @@ bool UpdateExecutor::DExecute() {
       }
       // if it is the latest version and not locked by other threads, then
       // insert a new version.
-      storage::Tuple *new_tuple =
-          new storage::Tuple(target_table_->GetSchema(), true);
+      std::unique_ptr<storage::Tuple> new_tuple(new storage::Tuple(target_table_->GetSchema(), true));
 
       // Make a copy of the original tuple and allocate a new tuple
       expression::ContainerTuple<storage::TileGroup> old_tuple(
           tile_group, physical_tuple_id);
       // Execute the projections
-      project_info_->Evaluate(new_tuple, &old_tuple, nullptr,
+      project_info_->Evaluate(new_tuple.get(), &old_tuple, nullptr,
                               executor_context_);
 
+      LOG_INFO("insert version update %s", new_tuple->GetInfo().c_str());
+
       // finally insert updated tuple into the table
-      ItemPointer location = target_table_->InsertVersion(new_tuple);
+      ItemPointer new_location = target_table_->InsertVersion(new_tuple.get());
 
       // FIXME: PerformUpdate() will not be executed if the insertion failed,
       // There is a write lock, acquired, but since it is not in the write set,
       // the acquired lock can't be released when the txn is aborted.
-      if (location.IsNull() == true) {
-        delete new_tuple;
-        new_tuple = nullptr;
+      if (new_location.IsNull() == true) {
         LOG_TRACE("Fail to insert new tuple. Set txn failure.");
         transaction_manager.SetTransactionResult(Result::RESULT_FAILURE);
         return false;
       }
-      transaction_manager.PerformUpdate(tile_group_id, physical_tuple_id,
-                                        location);
+
+      LOG_INFO("perform update old location: %u, %u", old_location.block, old_location.offset);
+      LOG_INFO("perform update new location: %u, %u", new_location.block, new_location.offset);
+      transaction_manager.PerformUpdate(old_location, new_location);
 
       executor_context_->num_processed += 1;  // updated one
 
-      delete new_tuple;
-      new_tuple = nullptr;
+      {
+        // Check all the foreign key constraints referencing this tuple
+        // and perform possible cascading action
+        auto res = CheckUpdateForeignKeyConstraints(tile, physical_tuple_id, new_tuple.get());
+        if (!res) {
+          LOG_INFO("update transaction fail");
+          transaction_manager.SetTransactionResult(Result::RESULT_FAILURE);
+          return res;
+        }
+      }
+
     } else {
       // transaction should be aborted as we cannot update the latest version.
       LOG_TRACE("Fail to update tuple. Set txn failure.");
@@ -153,6 +188,50 @@ bool UpdateExecutor::DExecute() {
       return false;
     }
   }
+  return true;
+}
+
+/**
+ * @brief Check all the non-referenced key constraint for a updated tuple.
+ * @param old_physical_tuple_id the physical id for the old tuple
+ *        new_tuple the updated new tuple
+ * @return true if all the non foreign key constraints are satistfied for this new tuple
+ */
+bool UpdateExecutor::CheckUpdateNonReferencedConstraints(__attribute__((unused)) storage::Tile *tile,
+                                                         __attribute__((unused)) oid_t old_physical_tuple_id,
+                                                         __attribute__((unused)) storage::Tuple* new_tuple) {
+  // TODO
+  return true;
+}
+
+/**
+ * @brief Check the foreign key constraints for update.
+ *  It will perform proper action according to the UpdateAction type of each foreign key constraints
+ * @param old_physical_tuple_id the physical id for the old tuple
+ *        new_tuple the updated new tuple
+ * @return true if all the foreign key constraints' action are succeefully perform for this update
+ */
+bool UpdateExecutor::CheckUpdateForeignKeyConstraints(storage::Tile *tile,
+                                                      oid_t old_physical_tuple_id,
+                                                      storage::Tuple* new_tuple) {
+  // get the number of foreign key constraints that reference this table
+  oid_t referedFKNum = target_table_->GetReferedForeignKeyCount();
+
+  if (referedFKNum > 0) {
+    // Get the physical base tuple list
+    // so that we can check all columns to ensure different foreign key constraints
+    std::unique_ptr<storage::Tuple> old_tuple(new storage::Tuple(tile->GetSchema(),
+                                              tile->GetTupleLocation(old_physical_tuple_id)));
+
+    for (oid_t i = 0; i < referedFKNum; ++i) {
+      // get the current foreign key constraints to be checked
+      auto foreign_key = target_table_->GetRefferedForeignKey(i);
+      // if any foreign key constraint is violated, return false
+      if (!foreign_key->CheckUpdateConstraints(executor_context_, old_tuple.get(), new_tuple))
+        return false;
+    }
+  }
+
   return true;
 }
 

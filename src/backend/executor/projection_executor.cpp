@@ -77,15 +77,14 @@ bool ProjectionExecutor::DExecute() {
     // Create projections tuple-at-a-time from original tile
     oid_t new_tuple_id = 0;
     for (oid_t old_tuple_id : *source_tile) {
-      storage::Tuple *buffer = new storage::Tuple(schema_, true);
+      std::unique_ptr<storage::Tuple> buffer(new storage::Tuple(schema_, true));
       expression::ContainerTuple<LogicalTile> tuple(source_tile.get(),
                                                     old_tuple_id);
-      project_info_->Evaluate(buffer, &tuple, nullptr, executor_context_);
+      project_info_->Evaluate(buffer.get(), &tuple, nullptr, executor_context_);
 
       // Insert projected tuple into the new tile
-      dest_tile.get()->InsertTuple(new_tuple_id, buffer);
+      dest_tile.get()->InsertTuple(new_tuple_id, buffer.get());
 
-      delete buffer;
       new_tuple_id++;
     }
 

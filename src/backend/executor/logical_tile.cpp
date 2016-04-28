@@ -17,6 +17,7 @@
 #include "backend/common/value.h"
 #include "backend/storage/tile_group.h"
 #include "backend/storage/tile.h"
+#include "backend/storage/tuple.h"
 #include "backend/common/value_factory.h"
 #include "backend/executor/logical_tile.h"
 
@@ -414,6 +415,24 @@ void LogicalTile::ProjectColumns(const std::vector<oid_t> &original_column_ids,
 
   // remove references to base tiles from columns that are projected away
   schema_ = std::move(new_schema);
+}
+
+/**
+ * @brief Get all the physical base tuples given a Logical tile
+ * @param source_tile the soruce logical tile
+ * @return the physical base tuples associdated with the given source tile as a vector
+ */
+std::vector<storage::Tuple> LogicalTile::GetBaseTupleListFromSourceTile() {
+  auto &pos_lists = GetPositionLists();
+  storage::Tile *tile = GetBaseTile(0);
+  std::vector<storage::Tuple> base_tuple_list;
+
+  for (oid_t visible_tuple_id : *this) {
+    oid_t physical_tuple_id = pos_lists[0][visible_tuple_id];
+    base_tuple_list.emplace_back(tile->GetSchema(), tile->GetTupleLocation(physical_tuple_id));
+  }
+
+  return base_tuple_list;
 }
 
 const std::string LogicalTile::GetInfo() const {

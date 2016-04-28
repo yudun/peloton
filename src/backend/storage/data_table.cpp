@@ -48,7 +48,7 @@ DataTable::DataTable(catalog::Schema *schema, const std::string &table_name,
                      const size_t &tuples_per_tilegroup, const bool own_schema,
                      const bool adapt_table)
     : AbstractTable(database_oid, table_oid, table_name, schema, own_schema),
-      tuples_per_tilegroup_(tuples_per_tilegroup), 
+      tuples_per_tilegroup_(tuples_per_tilegroup),
       adapt_table_(adapt_table) {
   // Init default partition
   auto col_count = schema->GetColumnCount();
@@ -65,7 +65,11 @@ DataTable::~DataTable() {
   oid_t tile_group_count = GetTileGroupCount();
   for (oid_t tile_group_itr = 0; tile_group_itr < tile_group_count;
        tile_group_itr++) {
-    auto tile_group_id = tile_groups_[tile_group_itr];
+    
+    tile_group_lock_.ReadLock();
+    auto tile_group_id = tile_groups_.at(tile_group_itr);
+    tile_group_lock_.Unlock();
+
     catalog::Manager::GetInstance().DropTileGroup(tile_group_id);
   }
 
@@ -93,7 +97,7 @@ bool DataTable::CheckNulls(const storage::Tuple *tuple) const {
   for (oid_t column_itr = 0; column_itr < column_count; column_itr++) {
     if (tuple->IsNull(column_itr) && schema->AllowNull(column_itr) == false) {
       LOG_TRACE(
-          "%lu th attribute in the tuple was NULL. It is non-nullable "
+          "%u th attribute in the tuple was NULL. It is non-nullable "
               "attribute.",
           column_itr);
       return false;
@@ -107,7 +111,7 @@ bool DataTable::CheckConstraints(const storage::Tuple *tuple) const {
   // First, check NULL constraints
   if (CheckNulls(tuple) == false) {
     throw ConstraintException("Not NULL constraint violated : " +
-        std::string(tuple->GetInfo()));
+                              std::string(tuple->GetInfo()));
     return false;
   }
   return true;
@@ -117,10 +121,12 @@ bool DataTable::CheckConstraints(const storage::Tuple *tuple) const {
 // this function first checks whether there's available slot.
 // if yes, then directly return the available slot.
 // in particular, if this is the last slot, a new tile group is created.
-// if there's no available slot, then some other threads must be allocating a new tile group.
-// we just wait until a new tuple slot in the newly allocated tile group is available.
+// if there's no available slot, then some other threads must be allocating a
+// new tile group.
+// we just wait until a new tuple slot in the newly allocated tile group is
+// available.
 ItemPointer DataTable::GetEmptyTupleSlot(const storage::Tuple *tuple,
-                                    bool check_constraint) {
+                                         bool check_constraint) {
   assert(tuple);
   if (check_constraint == true && CheckConstraints(tuple) == false) {
     return INVALID_ITEMPOINTER;
@@ -158,7 +164,7 @@ ItemPointer DataTable::GetEmptyTupleSlot(const storage::Tuple *tuple,
     AddDefaultTileGroup();
   }
 
-  LOG_TRACE("tile group count: %lu, tile group id: %lu, address: %p",
+  LOG_TRACE("tile group count: %u, tile group id: %u, address: %p",
             tile_group_count_, tile_group->GetTileGroupId(), tile_group.get());
 
   // Set tuple location
@@ -178,7 +184,7 @@ ItemPointer DataTable::InsertEmptyVersion(const storage::Tuple *tuple) {
     return INVALID_ITEMPOINTER;
   }
 
-  LOG_TRACE("Location: %lu, %lu", location.block, location.offset);
+  LOG_TRACE("Location: %u, %u", location.block, location.offset);
 
   IncreaseNumberOfTuplesBy(1);
   return location;
@@ -186,7 +192,7 @@ ItemPointer DataTable::InsertEmptyVersion(const storage::Tuple *tuple) {
 
 ItemPointer DataTable::InsertVersion(const storage::Tuple *tuple) {
   // First, do integrity checks and claim a slot
-  ItemPointer location = GetEmptyTupleSlot(tuple, false);
+  ItemPointer location = GetEmptyTupleSlot(tuple, true);
   if (location.block == INVALID_OID) {
     LOG_WARN("Failed to get tuple slot.");
     return INVALID_ITEMPOINTER;
@@ -204,7 +210,7 @@ ItemPointer DataTable::InsertVersion(const storage::Tuple *tuple) {
     return INVALID_ITEMPOINTER;
   }
 
-  LOG_TRACE("Location: %lu, %lu", location.block, location.offset);
+  LOG_TRACE("Location: %u, %u", location.block, location.offset);
 
   IncreaseNumberOfTuplesBy(1);
   return location;
@@ -218,7 +224,7 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple) {
     return INVALID_ITEMPOINTER;
   }
 
-  LOG_TRACE("Location: %lu, %lu", location.block, location.offset);
+  LOG_TRACE("Location: %u, %u", location.block, location.offset);
 
   // Index checks and updates
   if (InsertInIndexes(tuple, location) == false) {
@@ -235,7 +241,8 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple) {
   // Increase the table's number of tuples by 1
   IncreaseNumberOfTuplesBy(1);
   // Increase the indexes' number of tuples by 1 as well
-  for (auto index : indexes_) index->IncreaseNumberOfTuplesBy(1);
+  for (auto index : indexes_)
+    index->IncreaseNumberOfTuplesBy(1);
 
   return location;
 }
@@ -249,16 +256,15 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple) {
  * @returns True on success, false if a visible entry exists (in case of
  *primary/unique).
  */
-// TODO: this function MUST be rewritten!!! --Yingjun
 bool DataTable::InsertInIndexes(const storage::Tuple *tuple,
                                 ItemPointer location) {
   int index_count = GetIndexCount();
   auto &transaction_manager =
       concurrency::TransactionManagerFactory::GetInstance();
 
-  std::function<bool(const storage::Tuple *, const ItemPointer &)> fn
-      = std::bind(&concurrency::TransactionManager::IsVisbleOrDirty, &transaction_manager,
-                  std::placeholders::_1, std::placeholders::_2);
+  std::function<bool(const ItemPointer &)> fn =
+      std::bind(&concurrency::TransactionManager::IsOccupied,
+                &transaction_manager, std::placeholders::_1);
 
   // (A) Check existence for primary/unique indexes
   // FIXME Since this is NOT protected by a lock, concurrent insert may happen.
@@ -275,16 +281,10 @@ bool DataTable::InsertInIndexes(const storage::Tuple *tuple,
         // TODO: get unique tuple from primary index.
         // if in this index there has been a visible or uncommitted
         // <key, location> pair, this constraint is violated
-        if (index->ConditionalInsertEntry(key.get(), location, fn) == false) {
+        if (index->CondInsertEntry(key.get(), location, fn) == false) {
           return false;
         }
 
-        // auto locations = index->ScanKey(key.get());
-        // auto exist_visible = ContainsVisibleEntry(locations, transaction);
-        // if (exist_visible) {
-        //   LOG_WARN("A visible index entry exists.");
-        //   return false;
-        // }
       } break;
 
       case INDEX_CONSTRAINT_TYPE_DEFAULT:
@@ -304,9 +304,9 @@ bool DataTable::InsertInSecondaryIndexes(const storage::Tuple *tuple,
   auto &transaction_manager =
       concurrency::TransactionManagerFactory::GetInstance();
 
-  std::function<bool(const storage::Tuple *, const ItemPointer &)> fn
-      = std::bind(&concurrency::TransactionManager::IsVisbleOrDirty, &transaction_manager,
-                  std::placeholders::_1, std::placeholders::_2);
+  std::function<bool(const ItemPointer &)> fn =
+      std::bind(&concurrency::TransactionManager::IsOccupied,
+                &transaction_manager, std::placeholders::_1);
 
   // (A) Check existence for primary/unique indexes
   // FIXME Since this is NOT protected by a lock, concurrent insert may happen.
@@ -323,15 +323,9 @@ bool DataTable::InsertInSecondaryIndexes(const storage::Tuple *tuple,
       case INDEX_CONSTRAINT_TYPE_UNIQUE: {
         // if in this index there has been a visible or uncommitted
         // <key, location> pair, this constraint is violated
-        if (index->ConditionalInsertEntry(key.get(), location, fn) == false) {
+        if (index->CondInsertEntry(key.get(), location, fn) == false) {
           return false;
         }
-        // auto locations = index->ScanKey(key.get());
-        // auto exist_visible = ContainsVisibleEntry(locations, transaction);
-        // if (exist_visible) {
-        //   LOG_WARN("A visible index entry exists.");
-        //   return false;
-        // }
       } break;
 
       case INDEX_CONSTRAINT_TYPE_DEFAULT:
@@ -347,72 +341,24 @@ bool DataTable::InsertInSecondaryIndexes(const storage::Tuple *tuple,
 /**
  * @brief Check if all the foreign key constraints on this table
  * is satisfied by checking whether the key exist in the referred table
- *
+ * @param tuple the inserted tupe to be checked for the foreign key constraint
  * @returns True on success, false if any foreign key constraints fail
  */
 bool DataTable::CheckForeignKeyConstraints(const storage::Tuple *tuple) {
-
   for (auto foreign_key : foreign_keys_) {
-    LOG_INFO("This foreignKey is from table %lu:index %lu to table %lu:index %lu",
+    LOG_INFO("This foreignKey is from table %u:index %u to table %u:index %u",
              foreign_key->GetSrcTableOid(),
              foreign_key->GetSrcIndexOid(),
              foreign_key->GetSinkTableOid(),
              foreign_key->GetSinkIndexOid());
 
     oid_t sink_table_id = foreign_key->GetSinkTableOid();
-    storage::DataTable *ref_table =
+    storage::DataTable *sink_table =
         (storage::DataTable *)catalog::Manager::GetInstance().GetTableWithOid(
             database_oid, sink_table_id);
 
-    int ref_table_index_count = ref_table->GetIndexCount();
-
-    for (int index_itr = ref_table_index_count - 1; index_itr >= 0; --index_itr) {
-      auto index = ref_table->GetIndex(index_itr);
-
-      // Get the index in the refered table corresponding with
-      // this foreign key constraint
-      if (index->GetOid() == foreign_key->GetSinkIndexOid()) {
-        LOG_INFO("BEGIN CHECKING REFERED TABLE");
-        auto key_attrs = foreign_key->GetFKColumnOffsets();
-        LOG_INFO("CHECK COLUMN OFFSET = %lu", key_attrs[0]);
-
-        std::unique_ptr<catalog::Schema> foreign_key_schema(catalog::Schema::CopySchema(schema, key_attrs));
-        std::unique_ptr<storage::Tuple> key(new storage::Tuple(foreign_key_schema.get(), true));
-        //FIXME: what is the 3rd arg should be?
-        key->SetFromTuple(tuple, key_attrs, index->GetPool());
-
-        // if every column in key is null, we skip the foreign key insert check for it
-        // because it may be a result of insert version
-        if (key->IsEveryColumnNull()) {
-          LOG_INFO("EVERY COLUMN IN KEY IS NULL!");
-          break;
-        }
-
-        LOG_INFO("check key: %s", key->GetInfo().c_str());
-        auto locations = index->ScanKey(key.get());
-
-        auto &transaction_manager =
-            concurrency::TransactionManagerFactory::GetInstance();
-        // if visible key doesn't exist in the refered column
-        bool visible_key_exist = false;
-        if (locations.size() > 0) {
-          for(unsigned long i = 0; i < locations.size(); i++) {
-            auto tile_group_header = catalog::Manager::GetInstance()
-                .GetTileGroup(locations[i].block)->GetHeader();
-            auto tuple_id = locations[i].offset;
-            if (transaction_manager.IsVisible(tile_group_header, tuple_id)) {
-              visible_key_exist = true;
-              break;
-            }
-          }
-        }
-
-        if (!visible_key_exist)
-          return false;
-
-        break;
-      }
-    }
+    if (!foreign_key->IsTupleInSinkTable(sink_table, tuple))
+      return false;
   }
 
   return true;
@@ -512,14 +458,14 @@ column_map_type DataTable::GetTileGroupLayout(LayoutType layout_type) {
       column_map[col_itr] = std::make_pair(0, col_itr);
     }
   }
-    // pure column layout map
-  else if (layout_type == LAYOUT_COLUMN) {
+      // pure column layout map
+      else if (layout_type == LAYOUT_COLUMN) {
     for (oid_t col_itr = 0; col_itr < col_count; col_itr++) {
       column_map[col_itr] = std::make_pair(col_itr, 0);
     }
   }
-    // hybrid layout map
-  else if (layout_type == LAYOUT_HYBRID) {
+      // hybrid layout map
+      else if (layout_type == LAYOUT_HYBRID) {
     // TODO: Fallback option for regular tables
     if (col_count < 10) {
       for (oid_t col_itr = 0; col_itr < col_count; col_itr++) {
@@ -530,7 +476,7 @@ column_map_type DataTable::GetTileGroupLayout(LayoutType layout_type) {
     }
   } else {
     throw Exception("Unknown tilegroup layout option : " +
-        std::to_string(layout_type));
+                    std::to_string(layout_type));
   }
 
   return column_map;
@@ -541,27 +487,32 @@ oid_t DataTable::AddDefaultTileGroup() {
   oid_t tile_group_id = INVALID_OID;
 
   // Figure out the partitioning for given tilegroup layout
-  column_map = GetTileGroupLayout((LayoutType)peloton_layout_mode);
+  column_map = GetTileGroupLayout((LayoutType) peloton_layout_mode);
 
   // Create a tile group with that partitioning
   std::shared_ptr<TileGroup> tile_group(GetTileGroupWithLayout(column_map));
   assert(tile_group.get());
-  tile_group_id = tile_group.get()->GetTileGroupId();
+  tile_group_id = tile_group->GetTileGroupId();
 
   LOG_TRACE("Trying to add a tile group ");
   {
     LOG_TRACE("Added a tile group ");
-    tile_groups_.push_back(tile_group->GetTileGroupId());
+
+    tile_group_lock_.WriteLock();
+    tile_groups_.push_back(tile_group_id);
+    tile_group_lock_.Unlock();
+
 
     // add tile group metadata in locator
     catalog::Manager::GetInstance().AddTileGroup(tile_group_id, tile_group);
-    
-    // we must guarantee that the compiler always add tile group before adding tile_group_count_.
+
+    // we must guarantee that the compiler always add tile group before adding
+    // tile_group_count_.
     COMPILER_MEMORY_FENCE;
 
     tile_group_count_++;
 
-    LOG_TRACE("Recording tile group : %lu ", tile_group_id);
+    LOG_TRACE("Recording tile group : %u ", tile_group_id);
   }
 
   return tile_group_id;
@@ -584,48 +535,57 @@ oid_t DataTable::AddTileGroupWithOid(const oid_t &tile_group_id) {
       database_oid, table_oid, tile_group_id, this, schemas, column_map,
       tuples_per_tilegroup_));
 
-  
   LOG_TRACE("Added a tile group ");
-  tile_groups_.push_back(tile_group->GetTileGroupId());
 
-    // add tile group metadata in locator
+  tile_group_lock_.WriteLock();
+  tile_groups_.push_back(tile_group->GetTileGroupId());
+  tile_group_lock_.Unlock();
+
+  // add tile group metadata in locator
   catalog::Manager::GetInstance().AddTileGroup(tile_group_id, tile_group);
 
-    // we must guarantee that the compiler always add tile group before adding tile_group_count_.
+  // we must guarantee that the compiler always add tile group before adding
+  // tile_group_count_.
   COMPILER_MEMORY_FENCE;
 
   tile_group_count_++;
 
-  LOG_TRACE("Recording tile group : %lu ", tile_group_id);
+  LOG_TRACE("Recording tile group : %u ", tile_group_id);
 
   return tile_group_id;
 }
 
 void DataTable::AddTileGroup(const std::shared_ptr<TileGroup> &tile_group) {
-  tile_groups_.push_back(tile_group->GetTileGroupId());
   oid_t tile_group_id = tile_group->GetTileGroupId();
 
-    // add tile group in catalog
+  tile_group_lock_.WriteLock();
+  tile_groups_.push_back(tile_group_id);
+  tile_group_lock_.Unlock();
+
+  // add tile group in catalog
   catalog::Manager::GetInstance().AddTileGroup(tile_group_id, tile_group);
 
-    // we must guarantee that the compiler always add tile group before adding tile_group_count_.
+  // we must guarantee that the compiler always add tile group before adding
+  // tile_group_count_.
   COMPILER_MEMORY_FENCE;
 
   tile_group_count_++;
 
-
-  LOG_TRACE("Recording tile group : %lu ", tile_group_id);
+  LOG_TRACE("Recording tile group : %u ", tile_group_id);
 }
 
 size_t DataTable::GetTileGroupCount() const {
-  size_t size = tile_groups_.size();
-  return size;
+  return tile_group_count_;
 }
 
 std::shared_ptr<storage::TileGroup> DataTable::GetTileGroup(
     const oid_t &tile_group_offset) const {
   assert(tile_group_offset < GetTileGroupCount());
-  auto tile_group_id = tile_groups_[tile_group_offset];
+
+  tile_group_lock_.ReadLock();
+  auto tile_group_id = tile_groups_.at(tile_group_offset);
+  tile_group_lock_.Unlock();
+
   return GetTileGroupById(tile_group_id);
 }
 
@@ -659,7 +619,7 @@ const std::string DataTable::GetInfo() const {
     tuple_count += tile_tuple_count;
   }
 
-  os << "Table " << table_id  << " Tuple Count :: " << tuple_count << "\n";
+  os << "Table " << table_id << " Tuple Count :: " << tuple_count << "\n";
 
   //os << "=====================================================\n";
 
@@ -872,7 +832,7 @@ storage::TileGroup *DataTable::TransformTileGroup(
     const oid_t &tile_group_offset, const double &theta) {
   // First, check if the tile group is in this table
   if (tile_group_offset >= tile_groups_.size()) {
-    LOG_ERROR("Tile group offset not found in table : %lu ", tile_group_offset);
+    LOG_ERROR("Tile group offset not found in table : %u ", tile_group_offset);
     return nullptr;
   }
 
@@ -897,7 +857,8 @@ storage::TileGroup *DataTable::TransformTileGroup(
       TileGroupFactory::GetTileGroup(
           tile_group->GetDatabaseId(), tile_group->GetTableId(),
           tile_group->GetTileGroupId(), tile_group->GetAbstractTable(),
-          new_schema, default_partition_, tile_group->GetAllocatedTupleCount()));
+          new_schema, default_partition_,
+          tile_group->GetAllocatedTupleCount()));
 
   // Set the transformed tile group column-at-a-time
   SetTransformedTileGroup(tile_group.get(), new_tile_group.get());
@@ -1001,8 +962,8 @@ column_map_type DataTable::GetStaticColumnMap(const std::string &table_name,
         column_map[hyadapt_column_id] = std::make_pair(1, column_id);
       }
     }
-      // MULTIPLE GROUPS
-    else {
+        // MULTIPLE GROUPS
+        else {
       column_map[0] = std::make_pair(0, 0);
       oid_t tile_column_count = column_count / peloton_num_groups;
 
@@ -1022,16 +983,16 @@ column_map_type DataTable::GetStaticColumnMap(const std::string &table_name,
     }
 
   }
-    // YCSB
-  else if (table_name == "USERTABLE") {
+      // YCSB
+      else if (table_name == "USERTABLE") {
     column_map[0] = std::make_pair(0, 0);
 
     for (oid_t column_id = 1; column_id < column_count; column_id++) {
       column_map[column_id] = std::make_pair(1, column_id - 1);
     }
   }
-    // FALLBACK
-  else {
+      // FALLBACK
+      else {
     for (oid_t column_id = 0; column_id < column_count; column_id++) {
       column_map[column_id] = std::make_pair(0, column_id);
     }
