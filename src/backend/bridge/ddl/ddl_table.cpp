@@ -212,13 +212,19 @@ bool DDLTable::AlterTable(Oid relation_oid, AlterTableStmt *Astmt) {
   ListCell *lcmd;
   foreach (lcmd, Astmt->cmds) {
     AlterTableCmd *cmd = (AlterTableCmd *)lfirst(lcmd);
-    LOG_INFO("subtype = %d",cmd->subtype);
     switch (cmd->subtype) {
       // case AT_AddColumn:  /* add column */
       // case AT_DropColumn:  /* drop column */
       case AT_AddIndex:
       {
-        LOG_INFO("ADD CONSTRAIN UNIQUE");
+        if( cmd->def== nullptr ){
+          LOG_INFO("cmd->def is null");
+        }
+        IndexStmt *Istmt = (IndexStmt *)cmd->def;
+         bool status = AddIndex(Istmt);
+          if (status == false) {
+             LOG_WARN("Failed to add an index");
+          }
         break;
       }
       case AT_AddConstraint: /* ADD CONSTRAINT */
@@ -494,6 +500,23 @@ bool DDLTable::CheckNullExist( storage::DataTable* targetTable, std::string colu
     }
   }
   return false;
+}
+
+/**
+ * @brief Add an index
+ * @param Oid relation_oid
+ * @param IndexStmt *Istmt, index statement
+ * @return true if we successfull add this index, false otherwise
+ */
+bool DDLTable::AddIndex( IndexStmt *Istmt) {
+
+  IndexInfo * idx = DDLIndex::ConstructIndexInfoByParsingIndexStmt(Istmt);
+  IndexInfo my_index_info(idx->GetIndexName(), idx->GetOid(),idx->GetTableName(),
+                            idx->GetMethodType(),  INDEX_CONSTRAINT_TYPE_UNIQUE,
+                                    Istmt->unique, idx->GetKeyColumnNames());
+  bool status = DDLIndex::CreateIndex(my_index_info);
+  LOG_INFO("add index success = %d", status);
+  return status;
 }
 
 

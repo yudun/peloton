@@ -61,6 +61,7 @@ class DDLTable {
   static bool SetNotNull(Oid relation_oid, char *conname);
   static bool CheckNullExist(storage::DataTable* targetTable, std::string column_name);
   static bool AddConstraint(Oid relation_oid, Constraint *constraint, char* name);
+  static bool AddIndex(IndexStmt * Istmt);
 };
 
 }  // namespace bridge

@@ -278,7 +278,6 @@ bool DataTable::InsertInIndexes(const storage::Tuple *tuple,
         if (index->ConditionalInsertEntry(key.get(), location, fn) == false) {
           return false;
         }
-
         // auto locations = index->ScanKey(key.get());
         // auto exist_visible = ContainsVisibleEntry(locations, transaction);
         // if (exist_visible) {
