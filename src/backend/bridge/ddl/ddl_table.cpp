@@ -215,11 +215,6 @@ bool DDLTable::AlterTable(Oid relation_oid, AlterTableStmt *Astmt) {
     switch (cmd->subtype) {
       // case AT_AddColumn:  /* add column */
       // case AT_DropColumn:  /* drop column */
-      case AT_AddIndex:
-      {
-        if( cmd->def== nullptr ){
-          LOG_INFO("cmd->def is null");
-        }
         IndexStmt *Istmt = (IndexStmt *)cmd->def;
          bool status = AddIndex(Istmt);
           if (status == false) {
@@ -227,7 +222,7 @@ bool DDLTable::AlterTable(Oid relation_oid, AlterTableStmt *Astmt) {
           }
         break;
       }
-      case AT_AddConstraint: /* ADD CONSTRAINT */
+      case AT_AddConstraint: 
       {
          LOG_INFO("ADD CONSTRAIN");
         bool status = AddConstraint(relation_oid, (Constraint *)cmd->def, cmd->name);
