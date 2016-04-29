@@ -14,6 +14,8 @@
 
 #include "backend/concurrency/transaction_manager.h"
 #include "backend/storage/tile_group.h"
+#include <boost/container/flat_map.hpp>
+#include <boost/smart_ptr/detail/spinlock.hpp>
 
 namespace peloton {
 namespace concurrency {
@@ -67,16 +69,17 @@ class OptimisticTxnManager : public TransactionManager {
 
   virtual Transaction *BeginTransaction() {
     txn_id_t txn_id = GetNextTransactionId();
+    cid_t begin_cid = INVALID_CID;
     {
-      running_txn_buckets_[txn_id % RUNNING_TXN_BUCKET_NUM].lock_table();
-      running_txn_buckets_[txn_id % RUNNING_TXN_BUCKET_NUM][txn_id] = GetNextCommitId();
+      std::lock_guard<boost::detail::spinlock> guard(lock);
+      begin_cid = GetNextCommitId();
+      running_txn_buckets_[txn_id % RUNNING_TXN_BUCKET_NUM][txn_id] = begin_cid;
     }
-    cid_t begin_cid = running_txn_buckets_[txn_id % RUNNING_TXN_BUCKET_NUM][txn_id];
 
     Transaction *txn = new Transaction(txn_id, begin_cid);
     current_txn = txn;
 
-    current_epoch = new Epoch(current_txn->GetEndCommitId());
+    current_epoch = new Epoch(begin_cid);
     current_epoch->Join();
 
     return txn;
@@ -85,7 +88,10 @@ class OptimisticTxnManager : public TransactionManager {
   virtual void EndTransaction() {
     txn_id_t txn_id = current_txn->GetTransactionId();
     AddEpochToMap(current_txn->GetBeginCommitId(), current_epoch);
-    running_txn_buckets_[txn_id % RUNNING_TXN_BUCKET_NUM].erase(txn_id);
+    {
+      std::lock_guard<boost::detail::spinlock> guard(lock);
+      running_txn_buckets_[txn_id % RUNNING_TXN_BUCKET_NUM].erase(txn_id);
+    }
 
     // order is important - first add to map, then call Leave();
     current_epoch->Leave();
@@ -104,25 +110,20 @@ class OptimisticTxnManager : public TransactionManager {
     cid_t min_running_cid = MAX_CID;
     for (size_t i = 0; i < RUNNING_TXN_BUCKET_NUM; ++i) {
       {
-        auto iter = running_txn_buckets_[i].lock_table();
-        //LOG_INFO("running txn bucket %lu size = %lu", i, running_txn_buckets_[i].size());
-        for (auto &it : iter) {
-          if (it.second < min_running_cid) {
-            min_running_cid = it.second;
+        std::lock_guard<boost::detail::spinlock> guard(lock);
+        if(running_txn_buckets_[i].size()) {
+          if(running_txn_buckets_[i].begin()->second < min_running_cid) {
+            min_running_cid = running_txn_buckets_[i].begin()->second;
           }
         }
       }
     }
-    if(min_running_cid == MAX_CID) {
-      LOG_INFO("returning MAX_CID");
-      return MAX_CID;
-    }
-    //assert(min_running_cid > 0 && min_running_cid != MAX_CID);
-    return min_running_cid - 1;
+    return min_running_cid;
   }
 
  private:
-  cuckoohash_map<txn_id_t, cid_t> running_txn_buckets_[RUNNING_TXN_BUCKET_NUM];
+  boost::container::flat_map<txn_id_t, cid_t> running_txn_buckets_[RUNNING_TXN_BUCKET_NUM];
+  boost::detail::spinlock lock;
 };
 }
 }
