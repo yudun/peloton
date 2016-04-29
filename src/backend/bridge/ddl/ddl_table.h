@@ -57,10 +57,14 @@ class DDLTable {
                                  oid_t relation_oid);
 
  private:
+
+  // Functions for alter table statements
   static bool DropNotNull(Oid relation_oid, char *connname);
   static bool SetNotNull(Oid relation_oid, char *conname);
   static bool CheckNullExist(storage::DataTable* targetTable, std::string column_name);
+  // Add foreign key constraint
   static bool AddConstraint(Oid relation_oid, Constraint *constraint, char* name);
+  // Dynamically add unique and primary constraints
   static bool AddIndex(IndexStmt * Istmt);
 };
 
