@@ -73,7 +73,7 @@ class GCManager {
   GCType gc_type_;
   LockfreeQueue<TupleMetadata> possibly_free_list_;
   cuckoohash_map<oid_t, std::shared_ptr<LockfreeQueue<TupleMetadata>>> free_map_;
-  std::unique_ptr<std::thread> gc_thread_;
+  //std::unique_ptr<std::thread> gc_thread_;
 
   void RefurbishTuple(const TupleMetadata tuple_metadata);
 };

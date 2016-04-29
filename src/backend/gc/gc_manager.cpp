@@ -23,7 +23,8 @@ void GCManager::StartGC() {
     return;
   }
   if(this->gc_type_ == GC_TYPE_VACUUM) {
-    gc_thread_.reset(new std::thread(&GCManager::Poll, this));
+    //gc_thread_.reset(new std::thread(&GCManager::Poll, this));
+	std::thread(&GCManager::Poll, this).detach();
   }
 
   this->is_running_ = true;
@@ -34,7 +35,7 @@ void GCManager::StopGC() {
     return;
   }
   this->is_running_ = false;
-  this->gc_thread_->join();
+  //this->gc_thread_->join();
 }
 
 void GCManager::RefurbishTuple(TupleMetadata tuple_metadata) {
