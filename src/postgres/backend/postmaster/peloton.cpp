@@ -128,6 +128,7 @@ peloton_bootstrap() {
     }
 
     // start GC as per configuration
+    peloton::gc::GCManagerFactory::Configure(peloton_gc_mode);
     peloton::gc::GCManagerFactory::GetInstance().StartGC();
   }
   catch(const std::exception &exception) {
