@@ -212,14 +212,25 @@ bool DDLTable::AlterTable(Oid relation_oid, AlterTableStmt *Astmt) {
   ListCell *lcmd;
   foreach (lcmd, Astmt->cmds) {
     AlterTableCmd *cmd = (AlterTableCmd *)lfirst(lcmd);
+    LOG_INFO("subtype = %d",cmd->subtype);
     switch (cmd->subtype) {
       // case AT_AddColumn:  /* add column */
       // case AT_DropColumn:  /* drop column */
+      
+      case AT_AddIndex:{
         IndexStmt *Istmt = (IndexStmt *)cmd->def;
          bool status = AddIndex(Istmt);
           if (status == false) {
              LOG_WARN("Failed to add an index");
           }
+        break;
+      }
+      case AT_DropConstraint:{
+        LOG_INFO("AT_DropConstraint");
+        break;
+      }
+      case AT_DropConstraintRecurse:{
+	LOG_INFO("AT_DropConstraintRecurse");
         break;
       }
       case AT_AddConstraint: 
@@ -242,7 +253,6 @@ bool DDLTable::AlterTable(Oid relation_oid, AlterTableStmt *Astmt) {
           break;
       }
        case AT_SetNotNull:{
-          LOG_INFO("ALTER TABLE === SET NOT NULL ");
           bool status = DDLTable::SetNotNull(relation_oid, cmd->name);
 	  if (status == false) {
           	LOG_WARN("Failed to add constraint");
@@ -250,18 +260,6 @@ bool DDLTable::AlterTable(Oid relation_oid, AlterTableStmt *Astmt) {
           }
           break;
       }
-      case AT_DropConstraint:
-      {
-        LOG_INFO("ALTER TABLE === DROP CONSTRAINT ");
-        
-        if(cmd->def != NULL){
-          Constraint* constraint = (Constraint*)cmd->def;  
-          LOG_INFO("(Constraint *)cmd->def != NULL, type = %d",
-                   constraint->contype);
-        }
-        break;
-      }
-
       default:
         break;
     }
