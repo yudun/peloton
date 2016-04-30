@@ -126,7 +126,7 @@ bool DataTable::CheckConstraints(const storage::Tuple *tuple) const {
 }
 
 
-bool DataTable::CheckCheckConstraints(const storage::Tuple *tuple) {
+bool DataTable::CheckCheckConstraints(const storage::Tuple *tuple) const{
   Expr *qual;
 
   for(auto iter : check_predicates_ ){
@@ -138,14 +138,13 @@ bool DataTable::CheckCheckConstraints(const storage::Tuple *tuple) {
     expression::AbstractExpression *check_predicate
         = bridge::ExprTransformer::TransformExpr(expr_state);
 
-    if(check_predicate->Evaluate(&(static_cast<AbstractTuple>tuple), nullptr, NULL).IsFalse()){
+    if(check_predicate->Evaluate((static_cast<const AbstractTuple *>(tuple)), nullptr, NULL).IsFalse()){
       return false;
     }
 
-    return true;
-
   }
 
+  return true;
 
 }
 // this function is called when update/delete/insert is performed.
@@ -774,7 +773,7 @@ oid_t DataTable::GetIndexCount() const { return indexes_.size(); }
 // FOREIGN KEYS
 //===--------------------------------------------------------------------===//
 
-void DataTable:: AddCheckPredicate(std::vector<expression::AbstractExpression *> new_predicates){
+void DataTable:: AddCheckPredicate(std::vector<char *> new_predicates){
   check_predicates_ = new_predicates;
 }
 

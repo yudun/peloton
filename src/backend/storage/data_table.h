@@ -223,9 +223,12 @@ class DataTable : public AbstractTable {
   // INTEGRITY CHECKS
   //===--------------------------------------------------------------------===//
 
+  bool CheckConstraints(const storage::Tuple *tuple) const;
+
   bool CheckNulls(const storage::Tuple *tuple) const;
 
-  bool CheckConstraints(const storage::Tuple *tuple) const;
+  // check the check constraints
+  bool CheckCheckConstraints(const storage::Tuple *tuple) const;
 
   // Claim a tuple slot in a tile group
   ItemPointer GetEmptyTupleSlot(const storage::Tuple *tuple,
@@ -249,8 +252,6 @@ class DataTable : public AbstractTable {
   // check the foreign key constraints
   bool CheckForeignKeyConstraints(const storage::Tuple *tuple);
 
-  // check the check constraints
-  bool CheckCheckConstraints(const storage::Tuple *tuple);
  private:
   //===--------------------------------------------------------------------===//
   // MEMBERS

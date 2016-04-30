@@ -27,7 +27,7 @@
  *
  *-------------------------------------------------------------------------
  */
-#include <postgres/include/nodes/pg_list.h>
+
 #include "postgres.h"
 
 #include "access/htup_details.h"
@@ -75,6 +75,8 @@
 #include "utils/snapmgr.h"
 #include "utils/syscache.h"
 #include "utils/tqual.h"
+
+#include <postgres/include/nodes/pg_list.h>
 
 
 /* Potentially set by pg_upgrade_support functions */
@@ -2353,7 +2355,8 @@ AddRelationNewConstraints(Relation rel,
 						  is_local ? 0 : 1, cdef->is_no_inherit, is_internal);
 
 		//store plat cooked_expr to the state, used by peloton
-		cdef->cooked_expr = nodeToString(expr);
+		char * temp = nodeToString(expr);
+		cdef->cooked_expr = temp;
 
 		numchecks++;
 
