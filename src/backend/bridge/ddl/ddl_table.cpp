@@ -226,11 +226,11 @@ bool DDLTable::AlterTable(Oid relation_oid, AlterTableStmt *Astmt) {
         break;
       }
       case AT_DropConstraint:{
-        LOG_INFO("AT_DropConstraint");
-        break;
-      }
-      case AT_DropConstraintRecurse:{
-	LOG_INFO("AT_DropConstraintRecurse");
+        LOG_INFO("AT_DropConstraint, name = %s", cmd->name);
+        bool status = DropConstraint( relation_oid, cmd->name);
+        if (status == false) {
+           LOG_WARN("Failed to add constraint");
+        }
         break;
       }
       case AT_AddConstraint: 
@@ -504,6 +504,7 @@ bool DDLTable::CheckNullExist( storage::DataTable* targetTable, std::string colu
 bool DDLTable::AddIndex( IndexStmt *Istmt) {
 
   IndexInfo * idx = DDLIndex::ConstructIndexInfoByParsingIndexStmt(Istmt);
+  LOG_INFO("add index id = %u", idx->GetOid());
   IndexInfo my_index_info(idx->GetIndexName(), idx->GetOid(),idx->GetTableName(),
                             idx->GetMethodType(),  INDEX_CONSTRAINT_TYPE_UNIQUE,
                                     Istmt->unique, idx->GetKeyColumnNames());
@@ -512,6 +513,23 @@ bool DDLTable::AddIndex( IndexStmt *Istmt) {
   return status;
 }
 
+bool DDLTable::DropConstraint(Oid relation_oid,  char* conname ){
+  
+  oid_t database_oid = Bridge::GetCurrentDatabaseOid();
+  assert(database_oid);
+  auto &manager = catalog::Manager::GetInstance();
+  storage::Database *db = manager.GetDatabaseWithOid(database_oid);
+  storage::DataTable* targetTable = db->GetTableWithOid(relation_oid);
+  catalog::Schema* targetSchema = targetTable->GetSchema();
+
+  oid_t offset = targetSchema->DropConstraint( conname );
+  LOG_INFO("unique index offset = %u", offset);
+  if( offset >= targetTable->GetIndexCount() )
+    return false;
+  targetTable->DropIndexWithOid(offset);
+  return true;
+
+}
 
 /**
  * @brief Set Reference Tables
