@@ -513,8 +513,16 @@ bool DDLTable::AddIndex( IndexStmt *Istmt) {
   return status;
 }
 
+/**
+ * @brief Drop a constraint 
+ * @param Oid relation_oid
+ * @param Oid relation_oid,  char* conname
+ * @return true if we successfull drop this constraint, false otherwise
+ */
+
 bool DDLTable::DropConstraint(Oid relation_oid,  char* conname ){
-  
+   
+  // TODO: only unique implemented
   oid_t database_oid = Bridge::GetCurrentDatabaseOid();
   assert(database_oid);
   auto &manager = catalog::Manager::GetInstance();
