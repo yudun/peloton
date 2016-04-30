@@ -212,7 +212,6 @@ bool DDLTable::AlterTable(Oid relation_oid, AlterTableStmt *Astmt) {
   ListCell *lcmd;
   foreach (lcmd, Astmt->cmds) {
     AlterTableCmd *cmd = (AlterTableCmd *)lfirst(lcmd);
-    LOG_INFO("subtype = %d",cmd->subtype);
     switch (cmd->subtype) {
       // case AT_AddColumn:  /* add column */
       // case AT_DropColumn:  /* drop column */
@@ -226,7 +225,6 @@ bool DDLTable::AlterTable(Oid relation_oid, AlterTableStmt *Astmt) {
         break;
       }
       case AT_DropConstraint:{
-        LOG_INFO("AT_DropConstraint, name = %s", cmd->name);
         bool status = DropConstraint( relation_oid, cmd->name);
         if (status == false) {
            LOG_WARN("Failed to add constraint");

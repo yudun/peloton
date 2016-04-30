@@ -309,7 +309,6 @@ oid_t Schema::DropConstraint(char * conname){
   for (oid_t column_itr = 0; column_itr < total_column; column_itr++) {
     std::vector<catalog::Constraint>& cons = columns[column_itr].constraints;
     std::vector<catalog::Constraint>::iterator itr = cons.begin();
-
       for(; itr!=cons.end(); itr++) {
         if( (itr->GetName()).compare(std::string(conname)) == 0 ) {
           oid_t offset = itr->GetUniqueIndexOffset();
@@ -317,7 +316,6 @@ oid_t Schema::DropConstraint(char * conname){
           return offset;
         }
       }
-
   }
   return INVALID_OID;
 }
