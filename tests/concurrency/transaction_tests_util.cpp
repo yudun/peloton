@@ -144,15 +144,24 @@ storage::DataTable *TransactionTestsUtil::CreateTable(int num_key,
                                                       bool need_primary_index,
                                                       bool need_secondary_index,
                                                       oid_t secondary_index_oid,
-                                                      int inserted_value) {
+                                                      int inserted_value,
+                                                      bool need_third_column) {
   auto id_column = catalog::Column(VALUE_TYPE_INTEGER,
                                    GetTypeSize(VALUE_TYPE_INTEGER), "id", true);
   auto value_column = catalog::Column(
       VALUE_TYPE_INTEGER, GetTypeSize(VALUE_TYPE_INTEGER), "value", true);
 
+  auto value2_column = catalog::Column(
+      VALUE_TYPE_INTEGER, GetTypeSize(VALUE_TYPE_INTEGER), "value2", true);
+
+  catalog::Schema *table_schema = nullptr;
   // Create the table
-  catalog::Schema *table_schema =
-      new catalog::Schema({id_column, value_column});
+  if (need_third_column) {
+    table_schema = new catalog::Schema({id_column, value_column, value2_column});
+  }
+  else {
+    table_schema = new catalog::Schema({id_column, value_column});
+  }
 
   size_t tuples_per_tilegroup = 100;
   auto table = storage::TableFactory::GetDataTable(
@@ -192,6 +201,23 @@ storage::DataTable *TransactionTestsUtil::CreateTable(int num_key,
     table->AddIndex(sec_key_index);
   }
 
+  if (need_third_column) {
+    std::vector<oid_t> key_attrs = {2};
+    auto tuple_schema = table->GetSchema();
+    bool unique = false;
+    auto key_schema = catalog::Schema::CopySchema(tuple_schema, key_attrs);
+    key_schema->SetIndexedColumns(key_attrs);
+
+    auto index_metadata = new index::IndexMetadata(
+        "secondary_btree_index2", secondary_index_oid+1, INDEX_TYPE_BTREE,
+        INDEX_CONSTRAINT_TYPE_DEFAULT,
+        tuple_schema, key_schema, unique);
+
+    index::Index *sec_key_index2 = index::IndexFactory::GetInstance(index_metadata);
+
+    table->AddIndex(sec_key_index2);
+  }
+
   // add this table to current database
   auto &manager = catalog::Manager::GetInstance();
   storage::Database *db = manager.GetDatabaseWithOid(database_id);
@@ -203,7 +229,11 @@ storage::DataTable *TransactionTestsUtil::CreateTable(int num_key,
   auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
   auto txn = txn_manager.BeginTransaction();
   for (int i = 0; i < num_key; i++) {
-    ExecuteInsert(txn, table, i, inserted_value);
+    // if we choose to have different value for different rows
+    if (inserted_value == -1)
+      ExecuteInsert(txn, table, i, i, need_third_column ? i : -1);
+    else
+      ExecuteInsert(txn, table, i, inserted_value, need_third_column ? inserted_value : -1);
   }
   txn_manager.CommitTransaction();
 
@@ -227,7 +257,7 @@ TransactionTestsUtil::MakeProjectInfoFromTuple(const storage::Tuple *tuple) {
 
 bool TransactionTestsUtil::ExecuteInsert(concurrency::Transaction *transaction,
                                          storage::DataTable *table, int id,
-                                         int value) {
+                                         int value, int value2) {
   std::unique_ptr<executor::ExecutorContext> context(
       new executor::ExecutorContext(transaction));
 
@@ -237,6 +267,9 @@ bool TransactionTestsUtil::ExecuteInsert(concurrency::Transaction *transaction,
   auto testing_pool = TestingHarness::GetInstance().GetTestingPool();
   tuple->SetValue(0, ValueFactory::GetIntegerValue(id), testing_pool);
   tuple->SetValue(1, ValueFactory::GetIntegerValue(value), testing_pool);
+  if (value2 != -1) {
+    tuple->SetValue(2, ValueFactory::GetIntegerValue(value2), testing_pool);
+  }
   std::unique_ptr<const planner::ProjectInfo> project_info{
       MakeProjectInfoFromTuple(tuple.get())};
 
@@ -259,7 +292,7 @@ TransactionTestsUtil::MakePredicate(int id) {
 
 bool TransactionTestsUtil::ExecuteRead(concurrency::Transaction *transaction,
                                        storage::DataTable *table, int id,
-                                       int &result) {
+                                       int &result, bool read_val2) {
   std::unique_ptr<executor::ExecutorContext> context(
       new executor::ExecutorContext(transaction));
 
@@ -267,7 +300,12 @@ bool TransactionTestsUtil::ExecuteRead(concurrency::Transaction *transaction,
   auto predicate = MakePredicate(id);
 
   // Seq scan
-  std::vector<oid_t> column_ids = {0, 1};
+  std::vector<oid_t> column_ids;
+  if(read_val2)
+    column_ids = {0, 2};
+  else
+    column_ids = {0, 1};
+
   planner::SeqScanPlan seq_scan_node(table, predicate, column_ids);
   executor::SeqScanExecutor seq_scan_executor(&seq_scan_node, context.get());
 
@@ -321,7 +359,7 @@ bool TransactionTestsUtil::ExecuteDelete(concurrency::Transaction *transaction,
 }
 bool TransactionTestsUtil::ExecuteUpdate(concurrency::Transaction *transaction,
                                          storage::DataTable *table, int id,
-                                         int value) {
+                                         int value, bool update_val2) {
   std::unique_ptr<executor::ExecutorContext> context(
       new executor::ExecutorContext(transaction));
 
@@ -330,9 +368,19 @@ bool TransactionTestsUtil::ExecuteUpdate(concurrency::Transaction *transaction,
   // ProjectInfo
   planner::ProjectInfo::TargetList target_list;
   planner::ProjectInfo::DirectMapList direct_map_list;
-  target_list.emplace_back(
-      1, expression::ExpressionUtil::ConstantValueFactory(update_val));
-  direct_map_list.emplace_back(0, std::pair<oid_t, oid_t>(0, 0));
+  if (update_val2) {
+    target_list.emplace_back(
+        2, expression::ExpressionUtil::ConstantValueFactory(update_val));
+    direct_map_list.emplace_back(0, std::pair<oid_t, oid_t>(0, 0));
+    direct_map_list.emplace_back(1, std::pair<oid_t, oid_t>(0, 1));
+  }
+  else {
+    target_list.emplace_back(
+        1, expression::ExpressionUtil::ConstantValueFactory(update_val));
+    direct_map_list.emplace_back(0, std::pair<oid_t, oid_t>(0, 0));
+    if (table->GetSchema()->GetColumnCount() == 3)
+      direct_map_list.emplace_back(2, std::pair<oid_t, oid_t>(0, 2));
+  }
 
   // Update plan
   std::unique_ptr<const planner::ProjectInfo> project_info(
@@ -362,7 +410,8 @@ bool TransactionTestsUtil::ExecuteUpdate(concurrency::Transaction *transaction,
 bool TransactionTestsUtil::ExecuteUpdateByValue(concurrency::Transaction *txn,
                                                 storage::DataTable *table,
                                                 int old_value,
-                                                int new_value) {
+                                                int new_value,
+                                                bool update_val2) {
   std::unique_ptr<executor::ExecutorContext> context(
       new executor::ExecutorContext(txn));
 
@@ -371,10 +420,19 @@ bool TransactionTestsUtil::ExecuteUpdateByValue(concurrency::Transaction *txn,
   // ProjectInfo
   planner::ProjectInfo::TargetList target_list;
   planner::ProjectInfo::DirectMapList direct_map_list;
-  target_list.emplace_back(
-      1, expression::ExpressionUtil::ConstantValueFactory(update_val));
-  direct_map_list.emplace_back(0, std::pair<oid_t, oid_t>(0, 0));
-
+  if (update_val2) {
+    target_list.emplace_back(
+        2, expression::ExpressionUtil::ConstantValueFactory(update_val));
+    direct_map_list.emplace_back(0, std::pair<oid_t, oid_t>(0, 0));
+    direct_map_list.emplace_back(1, std::pair<oid_t, oid_t>(0, 1));
+  }
+  else {
+    target_list.emplace_back(
+        1, expression::ExpressionUtil::ConstantValueFactory(update_val));
+    direct_map_list.emplace_back(0, std::pair<oid_t, oid_t>(0, 0));
+    if (table->GetSchema()->GetColumnCount() == 3)
+      direct_map_list.emplace_back(2, std::pair<oid_t, oid_t>(0, 2));
+  }
   // Update plan
   std::unique_ptr<const planner::ProjectInfo> project_info(
       new planner::ProjectInfo(std::move(target_list),
@@ -384,14 +442,14 @@ bool TransactionTestsUtil::ExecuteUpdateByValue(concurrency::Transaction *txn,
   executor::UpdateExecutor update_executor(&update_node, context.get());
 
   // Predicate
-  auto tup_val_exp = new expression::TupleValueExpression(0, 1);
+  auto tup_val_exp = new expression::TupleValueExpression(0, update_val2 ? (unsigned)2 : (unsigned)1);
   auto const_val_exp = new expression::ConstantValueExpression(
       ValueFactory::GetIntegerValue(old_value));
   auto predicate = new expression::ComparisonExpression<expression::CmpEq>(
       EXPRESSION_TYPE_COMPARE_EQUAL, tup_val_exp, const_val_exp);
 
   // Seq scan
-  std::vector<oid_t> column_ids = {0, 1};
+  std::vector<oid_t> column_ids = {0, update_val2 ? (unsigned)2 : (unsigned)1};
   std::unique_ptr<planner::SeqScanPlan> seq_scan_node(
       new planner::SeqScanPlan(table, predicate, column_ids));
   executor::SeqScanExecutor seq_scan_executor(seq_scan_node.get(),

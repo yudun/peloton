@@ -2,16 +2,21 @@
 //
 //                         Peloton
 //
-// gc_manager_factory.cpp
+// epoch_manager.cpp
 //
-// Identification: src/backend/concurrency/gc_manager_factory.cpp
+// Identification: src/backend/concurrency/epoch_manager.cpp
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "gc_manager_factory.h"
+
+#include "epoch_manager.h"
 
 namespace peloton {
-namespace gc { GCType GCManagerFactory::gc_type_ = GC_TYPE_OFF; }
+namespace concurrency {
+
+  volatile cid_t EpochManager::curr_epoch_ = 1;
+
+}
 }

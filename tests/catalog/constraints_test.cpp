@@ -33,6 +33,9 @@
 #define FOREIGHN_KEY_RESTRICT_DELETE_TEST
 #define FOREIGHN_KEY_CASCADE_DELETE_TEST
 #define FOREIGHN_KEY_SETNULL_DELETE_TEST
+#define FOREIGHN_KEY_RESTRICT_UPDATE_TEST
+#define FOREIGHN_KEY_CASCADE_UPDATE_TEST
+#define FOREIGHN_KEY_SETNULL_UPDATE_TEST
 
 namespace peloton {
 namespace test {
@@ -168,21 +171,28 @@ TEST_F(ConstraintsTests, MultiTransactionUniqueConstraintsTest) {
   {
     std::unique_ptr<storage::DataTable> data_table(
         TransactionTestsUtil::CreatePrimaryKeyUniqueKeyTable());
-    // Test2: update a tuple to be a illegal primary key
+    // Test2: update a tuple to be a illegal unique key
     // txn1: update (1, 1) -> (1,11) -- success
     // txn0: update (0, 0) -> (0,1) -- fail
     // txn1 commit
     // txn0 commit
-    TransactionScheduler scheduler(2, data_table.get(), &txn_manager);
+    TransactionScheduler scheduler(3, data_table.get(), &txn_manager);
     scheduler.Txn(1).Update(1, 11);
     scheduler.Txn(0).Update(0, 1);
     scheduler.Txn(1).Commit();
     scheduler.Txn(0).Commit();
 
+    scheduler.Txn(2).Read(0);
+    scheduler.Txn(2).Read(1);
+    scheduler.Txn(2).Commit();
+
     scheduler.Run();
 
     EXPECT_TRUE(RESULT_ABORTED == scheduler.schedules[0].txn_result);
     EXPECT_TRUE(RESULT_SUCCESS == scheduler.schedules[1].txn_result);
+    EXPECT_TRUE(RESULT_SUCCESS == scheduler.schedules[2].txn_result);
+    EXPECT_TRUE(0 == scheduler.schedules[2].results[0]);
+    EXPECT_TRUE(11 == scheduler.schedules[2].results[1]);
   }
 
   {
@@ -451,6 +461,299 @@ TEST_F(ConstraintsTests, ForeignKeyTest) {
   }
 #endif
 
+#ifdef FOREIGHN_KEY_RESTRICT_UPDATE_TEST
+  LOG_INFO("BEGIN FOREIGN KEY RESTRICT_UPDATE TEST-----------------------------------");
+  //     TABLE I -- src table          TABLE J -- sink table
+  // int(primary)   int(ref J v1)        int(primary)    int   int
+  //    0                 1               0               0     0
+  //    1                 1               1               1     1
+  //    2                 1               2               2     2
+  //                                      .....
+  //                                      9               9     9
+
+  {
+    auto table_I =
+        TransactionTestsUtil::CreateTable(3, "tableI", 0, 5000, 5000, true, true, 5010, 1);
+    auto table_J =
+        TransactionTestsUtil::CreateTable(10, "tableJ", 0, 5001, 5001, true, true, 5020, -1, true);
+
+    // add the foreign key constraints for table_G
+    auto foreign_key = new catalog::ForeignKey(
+        5000, 5001,
+        table_J->GetIndexIdWithColumnOffsets({1}),
+        table_I->GetIndexIdWithColumnOffsets({1}),
+        {"value"}, {1}, {"value"}, {1}, FOREIGNKEY_ACTION_RESTRICT,
+        FOREIGNKEY_ACTION_NOACTION, "THIS_IS_FOREIGN_CONSTRAINT");
+    table_I->AddForeignKey(foreign_key);
+    // Test4: delete tuple and cascading set null
+    // constraint's restrict/noaction action
+    // txn1 read (0, tableI) --> 1
+    // txn1 read (1, tableI) --> 1
+    // txn1 read (2, tableI) --> 1
+    // txn1 read (1, tableJ) --> 1
+    // txn1 read (1, tableJ, read_val2) --> 1
+    // txn1 commit
+    // txn0 update (1, 10, tableJ, update_val2) --> update successfully
+    // txn0 read (0, tableI) --> 1
+    // txn0 read (1, tableI) --> 1
+    // txn0 read (2, tableI) --> 1
+    // txn0 read (1, tableJ) --> 1
+    // txn0 read (1, tableJ, read_val2) --> 10
+    // txn0 commit
+    // txn2 update (1, 11, tableJ) --> update resctrict, fail
+    // txn2 commit
+    // txn3 read (0, tableI) --> 1
+    // txn3 read (1, tableI) --> 1
+    // txn3 read (2, tableI) --> 1
+    // txn3 read (1, tableJ) --> 1
+    // txn3 read (1, tableJ, read_val2) --> 10
+    // txn3 commit
+    TransactionScheduler scheduler(4, table_J, &txn_manager);
+    scheduler.Txn(1).Read(0, table_I);
+    scheduler.Txn(1).Read(1, table_I);
+    scheduler.Txn(1).Read(2, table_I);
+    scheduler.Txn(1).Read(1, table_J);
+    scheduler.Txn(1).Read(1, table_J, true);
+    scheduler.Txn(1).Commit();
+
+    scheduler.Txn(0).Update(1, 10, table_J, true);
+    scheduler.Txn(0).Read(0, table_I);
+    scheduler.Txn(0).Read(1, table_I);
+    scheduler.Txn(0).Read(2, table_I);
+    scheduler.Txn(0).Read(1, table_J);
+    scheduler.Txn(0).Read(1, table_J, true);
+    scheduler.Txn(0).Commit();
+
+    scheduler.Txn(2).Update(1, 11, table_J);
+    scheduler.Txn(2).Commit();
+
+    scheduler.Txn(3).Read(0, table_I);
+    scheduler.Txn(3).Read(1, table_I);
+    scheduler.Txn(3).Read(2, table_I);
+    scheduler.Txn(3).Read(1, table_J);
+    scheduler.Txn(3).Read(1, table_J, true);
+    scheduler.Txn(3).Commit();
+    scheduler.Run();
+
+    EXPECT_TRUE(RESULT_SUCCESS == scheduler.schedules[0].txn_result);
+    EXPECT_TRUE(RESULT_SUCCESS == scheduler.schedules[1].txn_result);
+    EXPECT_TRUE(RESULT_ABORTED == scheduler.schedules[2].txn_result);
+    EXPECT_TRUE(RESULT_SUCCESS == scheduler.schedules[3].txn_result);
+    EXPECT_EQ(1, scheduler.schedules[0].results[0]);
+    EXPECT_EQ(1, scheduler.schedules[0].results[1]);
+    EXPECT_EQ(1, scheduler.schedules[0].results[2]);
+    EXPECT_EQ(1, scheduler.schedules[0].results[3]);
+    EXPECT_EQ(10, scheduler.schedules[0].results[4]);
+
+    EXPECT_EQ(1, scheduler.schedules[1].results[0]);
+    EXPECT_EQ(1, scheduler.schedules[1].results[1]);
+    EXPECT_EQ(1, scheduler.schedules[1].results[2]);
+    EXPECT_EQ(1, scheduler.schedules[1].results[3]);
+    EXPECT_EQ(1, scheduler.schedules[1].results[4]);
+
+    EXPECT_EQ(1, scheduler.schedules[3].results[0]);
+    EXPECT_EQ(1, scheduler.schedules[3].results[1]);
+    EXPECT_EQ(1, scheduler.schedules[3].results[2]);
+    EXPECT_EQ(1, scheduler.schedules[3].results[3]);
+    EXPECT_EQ(10, scheduler.schedules[3].results[4]);
+  }
+#endif
+
+#ifdef FOREIGHN_KEY_CASCADE_UPDATE_TEST
+  LOG_INFO("BEGIN FOREIGN KEY CASCADE_UPDATE TEST-----------------------------------");
+  //     TABLE K -- src table          TABLE L -- sink table
+  // int(primary)   int(ref L v1)        int(primary)    int   int
+  //    0                 1               0               0     0
+  //    1                 1               1               1     1
+  //    2                 1               2               2     2
+  //                                      .....
+  //                                      9               9     9
+
+  {
+    auto table_K =
+        TransactionTestsUtil::CreateTable(3, "tableK", 0, 6000, 6000, true, true, 6010, 1);
+    auto table_L =
+        TransactionTestsUtil::CreateTable(10, "tableL", 0, 6001, 6001, true, true, 6020, -1, true);
+
+    // add the foreign key constraints for table_K
+    auto foreign_key = new catalog::ForeignKey(
+        6000, 6001,
+        table_L->GetIndexIdWithColumnOffsets({1}),
+        table_K->GetIndexIdWithColumnOffsets({1}),
+        {"value"}, {1}, {"value"}, {1}, FOREIGNKEY_ACTION_CASCADE,
+        FOREIGNKEY_ACTION_NOACTION, "THIS_IS_FOREIGN_CONSTRAINT");
+    table_K->AddForeignKey(foreign_key);
+    // Test4: delete tuple and cascading set null
+    // constraint's restrict/noaction action
+    // txn1 read (0, tableK) --> 1
+    // txn1 read (1, tableK) --> 1
+    // txn1 read (2, tableK) --> 1
+    // txn1 read (1, tableL) --> 1
+    // txn1 read (1, tableL, read_val2) --> 1
+    // txn1 commit
+    // txn0 update (1, 10, tableL, update_val2) --> update successfully
+    // txn0 read (0, tableK) --> 1
+    // txn0 read (1, tableK) --> 1
+    // txn0 read (2, tableK) --> 1
+    // txn0 read (1, tableL) --> 1
+    // txn0 read (1, tableL, read_val2) --> 10
+    // txn0 commit
+    // txn2 update (1, 11, tableL) --> cascad update values in tableK
+    // txn2 commit
+    // txn3 read (0, tableK) --> 11
+    // txn3 read (1, tableK) --> 11
+    // txn3 read (2, tableK) --> 11
+    // txn3 read (1, tableL) --> 11
+    // txn3 read (1, tableL, read_val2) --> 10
+    // txn3 commit
+    TransactionScheduler scheduler(4, table_L, &txn_manager);
+    scheduler.Txn(1).Read(0, table_K);
+    scheduler.Txn(1).Read(1, table_K);
+    scheduler.Txn(1).Read(2, table_K);
+    scheduler.Txn(1).Read(1, table_L);
+    scheduler.Txn(1).Read(1, table_L, true);
+    scheduler.Txn(1).Commit();
+
+    scheduler.Txn(0).Update(1, 10, table_L, true);
+    scheduler.Txn(0).Read(0, table_K);
+    scheduler.Txn(0).Read(1, table_K);
+    scheduler.Txn(0).Read(2, table_K);
+    scheduler.Txn(0).Read(1, table_L);
+    scheduler.Txn(0).Read(1, table_L, true);
+    scheduler.Txn(0).Commit();
+
+    scheduler.Txn(2).Update(1, 11, table_L);
+    scheduler.Txn(2).Commit();
+
+    scheduler.Txn(3).Read(0, table_K);
+    scheduler.Txn(3).Read(1, table_K);
+    scheduler.Txn(3).Read(2, table_K);
+    scheduler.Txn(3).Read(1, table_L);
+    scheduler.Txn(3).Read(1, table_L, true);
+    scheduler.Txn(3).Commit();
+    scheduler.Run();
+
+    EXPECT_TRUE(RESULT_SUCCESS == scheduler.schedules[0].txn_result);
+    EXPECT_TRUE(RESULT_SUCCESS == scheduler.schedules[1].txn_result);
+    EXPECT_TRUE(RESULT_SUCCESS == scheduler.schedules[2].txn_result);
+    EXPECT_TRUE(RESULT_SUCCESS == scheduler.schedules[3].txn_result);
+    EXPECT_EQ(1, scheduler.schedules[0].results[0]);
+    EXPECT_EQ(1, scheduler.schedules[0].results[1]);
+    EXPECT_EQ(1, scheduler.schedules[0].results[2]);
+    EXPECT_EQ(1, scheduler.schedules[0].results[3]);
+    EXPECT_EQ(10, scheduler.schedules[0].results[4]);
+
+    EXPECT_EQ(1, scheduler.schedules[1].results[0]);
+    EXPECT_EQ(1, scheduler.schedules[1].results[1]);
+    EXPECT_EQ(1, scheduler.schedules[1].results[2]);
+    EXPECT_EQ(1, scheduler.schedules[1].results[3]);
+    EXPECT_EQ(1, scheduler.schedules[1].results[4]);
+
+    EXPECT_EQ(11, scheduler.schedules[3].results[0]);
+    EXPECT_EQ(11, scheduler.schedules[3].results[1]);
+    EXPECT_EQ(11, scheduler.schedules[3].results[2]);
+    EXPECT_EQ(11, scheduler.schedules[3].results[3]);
+    EXPECT_EQ(10, scheduler.schedules[3].results[4]);
+  }
+#endif
+
+#ifdef FOREIGHN_KEY_SETNULL_UPDATE_TEST
+  LOG_INFO("BEGIN FOREIGN KEY KEY_SETNULL_UPDATE TEST-----------------------------------");
+  //     TABLE M -- src table          TABLE N -- sink table
+  // int(primary)   int(ref N v1)        int(primary)    int   int
+  //    0                 1               0               0     0
+  //    1                 1               1               1     1
+  //    2                 1               2               2     2
+  //                                      .....
+  //                                      9               9     9
+
+  {
+    auto table_M =
+        TransactionTestsUtil::CreateTable(3, "tableM", 0, 7000, 7000, true, true, 7010, 1);
+    auto table_N =
+        TransactionTestsUtil::CreateTable(10, "tableN", 0, 7001, 7001, true, true, 7020, -1, true);
+
+    // add the foreign key constraints for table_K
+    auto foreign_key = new catalog::ForeignKey(
+        7000, 7001,
+        table_N->GetIndexIdWithColumnOffsets({1}),
+        table_M->GetIndexIdWithColumnOffsets({1}),
+        {"value"}, {1}, {"value"}, {1}, FOREIGNKEY_ACTION_SETNULL,
+        FOREIGNKEY_ACTION_NOACTION, "THIS_IS_FOREIGN_CONSTRAINT");
+    table_M->AddForeignKey(foreign_key);
+    // Test4: delete tuple and cascading set null
+    // constraint's restrict/noaction action
+    // txn1 read (0, tableM) --> 1
+    // txn1 read (1, tableM) --> 1
+    // txn1 read (2, tableM) --> 1
+    // txn1 read (1, tableN) --> 1
+    // txn1 read (1, tableN, read_val2) --> 1
+    // txn1 commit
+    // txn0 update (1, 10, tableN, update_val2) --> update successfully
+    // txn0 read (0, tableM) --> 1
+    // txn0 read (1, tableM) --> 1
+    // txn0 read (2, tableM) --> 1
+    // txn0 read (1, tableN) --> 1
+    // txn0 read (1, tableN, read_val2) --> 10
+    // txn0 commit
+    // txn2 update (1, 11, tableL) --> cascad set values as null in tableM
+    // txn2 commit
+    // txn3 read (0, tableM) --> null
+    // txn3 read (1, tableM) --> null
+    // txn3 read (2, tableM) --> null
+    // txn3 read (1, tableN) --> 11
+    // txn3 read (1, tableN, read_val2) --> 10
+    // txn3 commit
+    TransactionScheduler scheduler(4, table_N, &txn_manager);
+    scheduler.Txn(1).Read(0, table_M);
+    scheduler.Txn(1).Read(1, table_M);
+    scheduler.Txn(1).Read(2, table_M);
+    scheduler.Txn(1).Read(1, table_N);
+    scheduler.Txn(1).Read(1, table_N, true);
+    scheduler.Txn(1).Commit();
+
+    scheduler.Txn(0).Update(1, 10, table_N, true);
+    scheduler.Txn(0).Read(0, table_M);
+    scheduler.Txn(0).Read(1, table_M);
+    scheduler.Txn(0).Read(2, table_M);
+    scheduler.Txn(0).Read(1, table_N);
+    scheduler.Txn(0).Read(1, table_N, true);
+    scheduler.Txn(0).Commit();
+
+    scheduler.Txn(2).Update(1, 11, table_N);
+    scheduler.Txn(2).Commit();
+
+    scheduler.Txn(3).Read(0, table_M);
+    scheduler.Txn(3).Read(1, table_M);
+    scheduler.Txn(3).Read(2, table_M);
+    scheduler.Txn(3).Read(1, table_N);
+    scheduler.Txn(3).Read(1, table_N, true);
+    scheduler.Txn(3).Commit();
+    scheduler.Run();
+
+    EXPECT_TRUE(RESULT_SUCCESS == scheduler.schedules[0].txn_result);
+    EXPECT_TRUE(RESULT_SUCCESS == scheduler.schedules[1].txn_result);
+    EXPECT_TRUE(RESULT_SUCCESS == scheduler.schedules[2].txn_result);
+    EXPECT_TRUE(RESULT_SUCCESS == scheduler.schedules[3].txn_result);
+    EXPECT_EQ(1, scheduler.schedules[0].results[0]);
+    EXPECT_EQ(1, scheduler.schedules[0].results[1]);
+    EXPECT_EQ(1, scheduler.schedules[0].results[2]);
+    EXPECT_EQ(1, scheduler.schedules[0].results[3]);
+    EXPECT_EQ(10, scheduler.schedules[0].results[4]);
+
+    EXPECT_EQ(1, scheduler.schedules[1].results[0]);
+    EXPECT_EQ(1, scheduler.schedules[1].results[1]);
+    EXPECT_EQ(1, scheduler.schedules[1].results[2]);
+    EXPECT_EQ(1, scheduler.schedules[1].results[3]);
+    EXPECT_EQ(1, scheduler.schedules[1].results[4]);
+
+    EXPECT_EQ(INT32_NULL, scheduler.schedules[3].results[0]);
+    EXPECT_EQ(INT32_NULL, scheduler.schedules[3].results[1]);
+    EXPECT_EQ(INT32_NULL, scheduler.schedules[3].results[2]);
+    EXPECT_EQ(11, scheduler.schedules[3].results[3]);
+    EXPECT_EQ(10, scheduler.schedules[3].results[4]);
+  }
+#endif
 
   // remember to drop this database from the manager, this will also indirectly delete all tables in this database
   manager.DropDatabaseWithOid(current_db_oid);

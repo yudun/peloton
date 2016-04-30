@@ -127,7 +127,6 @@ void DDLUtils::ParsingCreateStmt(
 
         switch (contype) {
           case CONSTRAINT_TYPE_UNIQUE:
-            //
           case CONSTRAINT_TYPE_FOREIGN:
             continue;
 

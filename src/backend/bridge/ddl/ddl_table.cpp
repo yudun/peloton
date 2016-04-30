@@ -388,7 +388,7 @@ bool DDLTable::AddConstraint(Oid relation_oid, Constraint *constraint, char* nam
  * @param Constraint *constraint
  * @return true if drop not null successfully, false otherwise
  */
-bool DDLTable::DropNotNull(Oid relation_oid, __attribute__((unused))char *conname){
+bool DDLTable::DropNotNull(Oid relation_oid, char *conname){
 
   oid_t database_oid = Bridge::GetCurrentDatabaseOid();
   assert(database_oid);

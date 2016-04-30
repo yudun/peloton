@@ -93,7 +93,7 @@ bool DeleteExecutor::DExecute() {
 
   // Check all the foreign key constraints referencing this table
   // and perform possible cascading action
-  auto res = CheckDeleteForeiKeyConstraints(source_tile.get());
+  auto res = CheckDeleteForeignKeyConstraints(source_tile.get());
   if (!res) {
     transaction_manager.SetTransactionResult(RESULT_FAILURE);
     return res;
@@ -104,6 +104,9 @@ bool DeleteExecutor::DExecute() {
     oid_t physical_tuple_id = pos_lists[0][visible_tuple_id];
 
     LOG_INFO("delete tuple in table %s", target_table_->GetName().c_str());
+
+    ItemPointer old_location(tile_group_id, physical_tuple_id);
+
     LOG_TRACE("Visible Tuple id : %lu, Physical Tuple id : %lu ",
               visible_tuple_id, physical_tuple_id);
 
@@ -111,7 +114,7 @@ bool DeleteExecutor::DExecute() {
         true) {
       // if the thread is the owner of the tuple, then directly update in place.
 
-      transaction_manager.PerformDelete(tile_group_id, physical_tuple_id);
+      transaction_manager.PerformDelete(old_location);
 
     } else if (transaction_manager.IsOwnable(tile_group_header,
                                              physical_tuple_id) == true) {
@@ -125,35 +128,26 @@ bool DeleteExecutor::DExecute() {
       }
       // if it is the latest version and not locked by other threads, then
       // insert a new version.
-      storage::Tuple *new_tuple =
-          new storage::Tuple(target_table_->GetSchema(), true);
+      std::unique_ptr<storage::Tuple> new_tuple(new storage::Tuple(target_table_->GetSchema(), true));
 
       // Make a copy of the original tuple and allocate a new tuple
       expression::ContainerTuple<storage::TileGroup> old_tuple(
           tile_group, physical_tuple_id);
 
       // finally insert updated tuple into the table
-      ItemPointer location = target_table_->InsertEmptyVersion(new_tuple);
+      ItemPointer new_location = target_table_->InsertEmptyVersion(new_tuple.get());
 
-      if (location.block == INVALID_OID) {
-        delete new_tuple;
-        new_tuple = nullptr;
+      if (new_location.IsNull() == true) {
         LOG_TRACE("Fail to insert new tuple. Set txn failure.");
         transaction_manager.SetTransactionResult(Result::RESULT_FAILURE);
+        // yield the ownership of this tuple
+        transaction_manager.YieldOwnership(tile_group_header, tile_group_id,
+                                           physical_tuple_id);
         return false;
       }
-
-      auto res = transaction_manager.PerformDelete(tile_group_id,
-                                                   physical_tuple_id, location);
-      if (!res) {
-        transaction_manager.SetTransactionResult(RESULT_FAILURE);
-        return res;
-      }
-
+      transaction_manager.PerformDelete(old_location, new_location);
+      
       executor_context_->num_processed += 1;  // deleted one
-
-      delete new_tuple;
-      new_tuple = nullptr;
     } else {
       // transaction should be aborted as we cannot update the latest version.
       LOG_TRACE("Fail to update tuple. Set txn failure.");
@@ -173,7 +167,7 @@ bool DeleteExecutor::DExecute() {
  * @param source_tile the logical tile which contain all the tuple to be deleted
  * @return true if all the foreign key constraints' action are succeefully perform for this deletion
  */
-bool DeleteExecutor::CheckDeleteForeiKeyConstraints(LogicalTile * source_tile) {
+bool DeleteExecutor::CheckDeleteForeignKeyConstraints(LogicalTile * source_tile) {
   // get the number of foreign key constraints that reference this table
   oid_t referedFKNum = target_table_->GetReferedForeignKeyCount();
 
