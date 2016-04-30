@@ -28,6 +28,12 @@
 #include "backend/storage/tile_group_factory.h"
 #include "backend/concurrency/transaction_manager_factory.h"
 
+#include "backend/bridge/dml/expr/expr_transformer.h"
+
+#include <postgres/include/optimizer/clauses.h>
+#include <postgres/include/optimizer/planner.h>
+#include <postgres/include/executor/executor.h>
+
 //===--------------------------------------------------------------------===//
 // Configuration Variables
 //===--------------------------------------------------------------------===//
@@ -110,9 +116,38 @@ bool DataTable::CheckConstraints(const storage::Tuple *tuple) const {
         std::string(tuple->GetInfo()));
     return false;
   }
+
+  if (CheckCheckConstraints(tuple) == false) {
+    throw ConstraintException("Check constraint violated : " +
+                              std::string(tuple->GetInfo()));
+    return false;
+  }
   return true;
 }
 
+
+bool DataTable::CheckCheckConstraints(const storage::Tuple *tuple) {
+  Expr *qual;
+
+  for(auto iter : check_predicates_ ){
+    char * expr = iter;
+    ExprState *expr_state;
+    qual = (Expr *) make_ands_implicit(static_cast<Expr *>(stringToNode(expr)));
+    qual = expression_planner(qual);
+    expr_state = ExecInitExpr(qual, NULL);
+    expression::AbstractExpression *check_predicate
+        = bridge::ExprTransformer::TransformExpr(expr_state);
+
+    if(check_predicate->Evaluate(&(static_cast<AbstractTuple>tuple), nullptr, NULL).IsFalse()){
+      return false;
+    }
+
+    return true;
+
+  }
+
+
+}
 // this function is called when update/delete/insert is performed.
 // this function first checks whether there's available slot.
 // if yes, then directly return the available slot.
@@ -176,10 +211,10 @@ ItemPointer DataTable::InsertEmptyVersion(const storage::Tuple *tuple) {
   }
 
   // ForeignKey checks
-  if (CheckForeignKeyConstraints(tuple) == false) {
-    LOG_WARN("ForeignKey constraint violated: inserted value doesn't appear in refered table");
-    return INVALID_ITEMPOINTER;
-  }
+//  if (CheckForeignKeyConstraints(tuple) == false) {
+//    LOG_WARN("ForeignKey constraint violated: inserted value doesn't appear in refered table");
+//    return INVALID_ITEMPOINTER;
+//  }
 
   LOG_TRACE("Location: %lu, %lu", location.block, location.offset);
 
@@ -194,6 +229,7 @@ ItemPointer DataTable::InsertVersion(const storage::Tuple *tuple) {
     LOG_WARN("Failed to get tuple slot.");
     return INVALID_ITEMPOINTER;
   }
+
 
   // Index checks and updates
   if (InsertInSecondaryIndexes(tuple, location) == false) {
@@ -356,11 +392,13 @@ bool DataTable::InsertInSecondaryIndexes(const storage::Tuple *tuple,
 bool DataTable::CheckForeignKeyConstraints(const storage::Tuple *tuple) {
 
   for (auto foreign_key : foreign_keys_) {
-    LOG_INFO("This foreignKey is from table %lu:index %lu to table %lu:index %lu",
+    LOG_INFO("This foreignKey is from table %lu:index %lu to table %lu:index %lu,"
+             "INVALID_OID = %lu",
              foreign_key->GetSrcTableOid(),
              foreign_key->GetSrcIndexOid(),
              foreign_key->GetSinkTableOid(),
-             foreign_key->GetSinkIndexOid());
+             foreign_key->GetSinkIndexOid(),
+            INVALID_OID);
 
     oid_t sink_table_id = foreign_key->GetSinkTableOid();
     storage::DataTable *ref_table =

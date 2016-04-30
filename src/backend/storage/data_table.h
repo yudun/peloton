@@ -153,7 +153,7 @@ class DataTable : public AbstractTable {
 
   void AddForeignKey(catalog::ForeignKey *key);
 
-  void AddCheckPredicate(std::vector<expression::AbstractExpression *> check_predicates);
+  void AddCheckPredicate(std::vector<char *> check_predicates);
 
   void AddReferringForeignKey(catalog::ForeignKey *const key);
 
@@ -248,6 +248,9 @@ class DataTable : public AbstractTable {
 
   // check the foreign key constraints
   bool CheckForeignKeyConstraints(const storage::Tuple *tuple);
+
+  // check the check constraints
+  bool CheckCheckConstraints(const storage::Tuple *tuple);
  private:
   //===--------------------------------------------------------------------===//
   // MEMBERS
@@ -273,7 +276,7 @@ class DataTable : public AbstractTable {
 
   // CONSTRAINTS
   std::vector<catalog::ForeignKey *> foreign_keys_;
-  std::vector<expression::AbstractExpression *> check_predicates_;
+  std::vector<char *> check_predicates_;
   // RECORD WHICH FOREIGN KEYS REFERS THIS TABLE
   std::vector<catalog::ForeignKey *> refered_foreign_keys_;
 

@@ -181,7 +181,6 @@ bool DDLTable::CreateTableCheck(Oid relation_oid, std::string table_name,
                            CreateStmt *Cstmt) {
   assert(!table_name.empty());
 
-  std::vector<expression::AbstractExpression *> check_predicates;
   Oid database_oid = Bridge::GetCurrentDatabaseOid();
   // if (database_oid == INVALID_OID || relation_oid == INVALID_OID) return
   // false;
@@ -198,6 +197,7 @@ bool DDLTable::CreateTableCheck(Oid relation_oid, std::string table_name,
 
   //TODO:Here only check constrain be added
 
+  std::vector<char *> check_predicates;
   if(Cstmt != NULL && Cstmt->constraints != NULL){
     List *newConstraints = Cstmt->constraints;
     ListCell   *cell;
@@ -207,9 +207,9 @@ bool DDLTable::CreateTableCheck(Oid relation_oid, std::string table_name,
       if (cdef->contype != CONSTR_CHECK)
         continue;
 
-      expression::AbstractExpression *predicate =
-          ExprTransformer::TransformExpr(reinterpret_cast<ExprState *>(cdef));
-      check_predicates.push_back(predicate);
+//      expression::AbstractExpression *predicate =
+//          ExprTransformer::TransformExpr(reinterpret_cast<ExprState *>(cdef));
+      check_predicates.push_back(cdef->cooked_expr);
     }
 
   }
