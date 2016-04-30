@@ -461,12 +461,13 @@ void DataTable::ResetDirty() { dirty_ = false; }
  * @brief Return total number of bytes a data table occupies
  */
 
-uint64_t DataTable::GetMemoryFootprint() const {
+uint64_t DataTable::GetMemoryFootprint(const oid_t table_oid) const {
   uint64_t count = 0;
   for (size_t i = 0; i < tile_groups_.size(); ++i)
   {
     auto tile_group = GetTileGroup(i);
-    count += tile_group -> GetMemoryFootprint();
+    auto recycled_count = gc::GCManagerFactory::GetInstance()::GetRecycledTupleSlotCountPerTileGroup(table_oid, i);
+    count += tile_group -> GetMemoryFootprint(recycled_count);
   }
   return count;
 }

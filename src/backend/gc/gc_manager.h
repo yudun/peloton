@@ -57,6 +57,7 @@ class GCManager {
   void StopGC();
 
   void RecycleTupleSlot(const oid_t &table_id, const oid_t &tile_group_id, const oid_t &tuple_id, const cid_t &tuple_end_cid);
+  size_t GetRecycledTupleSlotCountPerTileGroup(const oid_t& table_id, const oid_t& tile_group_id);
 
   ItemPointer ReturnFreeSlot(const oid_t &table_id);
 
@@ -64,7 +65,7 @@ class GCManager {
   void Poll();
   void DeleteTupleFromIndexes(const TupleMetadata &);
 
-  
+
  private:
   //===--------------------------------------------------------------------===//
   // Data members
@@ -72,8 +73,9 @@ class GCManager {
   volatile bool is_running_;
   GCType gc_type_;
   LockfreeQueue<TupleMetadata> possibly_free_list_;
-  cuckoohash_map<oid_t, std::shared_ptr<LockfreeQueue<TupleMetadata>>> free_map_;
+  cuckoohash_map<oid_t, std::pair<size_t, std::shared_ptr<LockfreeQueue<TupleMetadata>>>> free_map_;
   //std::unique_ptr<std::thread> gc_thread_;
+  std::mutex free_map_mutex;
 
   void RefurbishTuple(const TupleMetadata tuple_metadata);
 };
