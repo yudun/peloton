@@ -152,7 +152,7 @@ bool DataTable::CheckCheckConstraints(const storage::Tuple *tuple) const{
 // if yes, then directly return the available slot.
 // in particular, if this is the last slot, a new tile group is created.
 // if there's no available slot, then some other threads must be allocating a new tile group.
-// we just wait until a new tuple slot in the newly allocated tile group is available.
+// we just wait until a new tuple slot in the newly allocated tilexc group is available.
 ItemPointer DataTable::GetEmptyTupleSlot(const storage::Tuple *tuple,
                                     bool check_constraint) {
   assert(tuple);
