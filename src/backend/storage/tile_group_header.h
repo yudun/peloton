@@ -161,10 +161,6 @@ class TileGroupHeader : public Printable {
     return *((bool *)(TUPLE_HEADER_LOCATION + delete_commit_offset));
   }
 
-  inline oid_t GetRecycledSlotCount() const {
-    return recycled_slot_count;
-  }
-
   // Setters
 
   inline void SetTileGroup(TileGroup *tile_group) {
@@ -224,10 +220,6 @@ class TileGroupHeader : public Printable {
                                         transaction_id);
   }
 
-  inline bool SetRecycledSlotCount(const oid_t count) const {
-    return __sync_bool_compare_and_swap(this -> recycled_slot_count, recycled_slot_count, count);
-  }
-
   void PrintVisibility(txn_id_t txn_id, cid_t at_cid);
 
   // Sync the contents
@@ -283,9 +275,6 @@ class TileGroupHeader : public Printable {
 
   // number of tuple slots allocated
   oid_t num_tuple_slots;
-
-  // number of recycled tuple slots
-  oid_t recycled_slot_count;
 
   // next free tuple slot
   // WARNING: this variable may not be the right boundary of the tile

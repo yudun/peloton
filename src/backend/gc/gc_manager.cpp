@@ -60,7 +60,7 @@ void GCManager::RefurbishTuple(TupleMetadata tuple_metadata) {
     free_list.first = free_list.first + 1;
   } else {
     // if the entry for tuple_metadata.table_id does not exist.
-    free_list.second -> reset(new LockfreeQueue<TupleMetadata>(MAX_TUPLES_PER_GC));
+    free_list.second.reset(new LockfreeQueue<TupleMetadata>(MAX_TUPLES_PER_GC));
     free_list.second ->Push(tuple_metadata);
     free_list.first = 1;
     free_map_[tuple_metadata.table_id] = free_list;
@@ -195,7 +195,7 @@ void GCManager::DeleteTupleFromIndexes(const TupleMetadata &tuple_metadata __att
 }
 
 size_t GCManager::GetRecycledTupleSlotCountPerTileGroup(const oid_t& table_id, const oid_t& tile_group_id) {
-  if (this -> gc_type == GC_TYPE_OFF)
+  if (this -> gc_type_ == GC_TYPE_OFF)
   {
     return 0;
   }

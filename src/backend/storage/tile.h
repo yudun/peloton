@@ -113,19 +113,13 @@ class Tile : public Printable {
   //===--------------------------------------------------------------------===//
 
   // Only inlined data
-  uint32_t GetInlinedSize() const {
-    oid_t recycled = this -> tile_group -> GetHeader() -> GetRecycledSlotCount();
-    tile_size = (tuple_count - recycled) * tuple_length;
-    return tile_size;
-  }
+  uint32_t GetInlinedSize() const { return tile_size; }
 
   int64_t GetUninlinedDataSize() const { return uninlined_data_size; }
 
   // Both inlined and uninlined data
-  uint32_t GetSize() const {
-    oid_t recycled = this -> tile_group -> GetHeader() -> GetRecycledSlotCount();
-    tile_size = (tuple_count - recycled) * tuple_length;
-    return tile_size + uninlined_data_size;
+  uint32_t GetSize(size_t recycled) const {
+    return (num_tuple_slots - recycled) * tuple_length + uninlined_data_size;
   }
 
   //===--------------------------------------------------------------------===//
