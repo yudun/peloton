@@ -180,7 +180,7 @@ class DataTable : public AbstractTable {
 
   void ResetDirty();
 
-  uint64_t GetMemoryFootprint() const;
+  uint64_t GetMemoryFootprint(const oid_t table_oid) const;
 
   const column_map_type &GetDefaultPartition();
 
