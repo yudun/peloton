@@ -81,7 +81,7 @@ void GCManager::PerformGC() {
 
   while (true) {
     LOG_DEBUG("Polling GC thread...");
-
+    LOG_DEBUG("The memory usage before GC is %lu bytes", catalog::Manager::GetInstance().GetMemoryFootprint());
     auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
     auto max_cid = txn_manager.GetMaxCommittedCid();
 
@@ -136,6 +136,7 @@ void GCManager::PerformGC() {
           possibly_free_list_.Push(tuple_metadata);
         }
       }  // end for
+    LOG_DEBUG("The memory usage after GC is %lu bytes", catalog::Manager::GetInstance().GetMemoryFootprint());
     }    // end if
     if (is_running_ == false) {
       return;
