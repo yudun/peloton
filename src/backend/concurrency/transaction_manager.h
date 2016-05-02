@@ -193,14 +193,14 @@ class TransactionManager {
   virtual cid_t GetMaxCommittedCid() = 0;
 
   bool PerformEpochCAS(cid_t old_val, cid_t new_val) {
-    return cid_of_smallest_epoch_cleaned_.compare_exchange_strong(old_val, new_val);
+    bool retval = false;
+    retval = cid_of_smallest_epoch_cleaned_.compare_exchange_strong(old_val, new_val);
+    return retval;
   }
 
-  //oid_t GetSmallestEpochCleaned() { return smallest_epoch_cleaned_; }
+  oid_t GetCurrentEpochId() { return next_cid_.load(); }
 
-  oid_t GetCurrentEpochId() { return next_cid_; }
-
-  cid_t GetSmallestEpochCleanedCid() { return cid_of_smallest_epoch_cleaned_; }
+  cid_t GetSmallestEpochCleanedCid() { return cid_of_smallest_epoch_cleaned_.load(); }
 
   Epoch * GetEpoch(oid_t e) {
     Epoch *epoch = nullptr;

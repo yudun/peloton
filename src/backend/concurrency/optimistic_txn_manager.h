@@ -73,31 +73,31 @@ class OptimisticTxnManager : public TransactionManager {
     {
       std::lock_guard<boost::detail::spinlock> guard(lock);
       begin_cid = GetNextCommitId();
-      running_txn_buckets_[txn_id % RUNNING_TXN_BUCKET_NUM][txn_id] = begin_cid;
+      running_txn_buckets_[begin_cid % RUNNING_TXN_BUCKET_NUM][begin_cid] = txn_id;
     }
 
     Transaction *txn = new Transaction(txn_id, begin_cid);
     current_txn = txn;
 
     current_epoch = new Epoch(begin_cid);
+
+    // current thread joins epoch for executing transaction
     current_epoch->Join();
 
     return txn;
   }
 
   virtual void EndTransaction() {
-    txn_id_t txn_id = current_txn->GetTransactionId();
-    AddEpochToMap(current_txn->GetBeginCommitId(), current_epoch);
+    cid_t begin_cid = current_txn->GetBeginCommitId();
+    // order is important - first add to map, then call Leave();
+    AddEpochToMap(begin_cid, current_epoch);
     {
       std::lock_guard<boost::detail::spinlock> guard(lock);
-      running_txn_buckets_[txn_id % RUNNING_TXN_BUCKET_NUM].erase(txn_id);
+      running_txn_buckets_[begin_cid % RUNNING_TXN_BUCKET_NUM].erase(begin_cid);
     }
 
-    // order is important - first add to map, then call Leave();
-    current_epoch->Leave();
-    if(GetCurrentEpochId() > current_epoch->GetEpochId()) {
-      // some thread has deleted performed GC on current epoch
-      // so it is safe to delete the object
+    if(current_epoch->Leave()) {
+      // if Leave() returns true, we can safely delete current_epoch
       delete current_epoch;
     }
 
@@ -106,19 +106,23 @@ class OptimisticTxnManager : public TransactionManager {
     current_txn = nullptr;
   }
 
+  // Returns the largest CID committed when this function was called
   virtual cid_t GetMaxCommittedCid() {
     cid_t min_running_cid = MAX_CID;
     for (size_t i = 0; i < RUNNING_TXN_BUCKET_NUM; ++i) {
       {
         std::lock_guard<boost::detail::spinlock> guard(lock);
         if(running_txn_buckets_[i].size()) {
-          if(running_txn_buckets_[i].begin()->second < min_running_cid) {
-            min_running_cid = running_txn_buckets_[i].begin()->second;
+          if(running_txn_buckets_[i].begin()->first < min_running_cid) {
+            min_running_cid = running_txn_buckets_[i].begin()->first;
           }
         }
       }
     }
-    return min_running_cid;
+    if(min_running_cid == MAX_CID) {
+      return MAX_CID;
+    }
+    return min_running_cid - 1;
   }
 
  private:

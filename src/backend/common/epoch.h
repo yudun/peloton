@@ -1,3 +1,14 @@
+//===----------------------------------------------------------------------===//
+//
+//                         Peloton
+//
+// epoch.h
+//
+// Identification: src/backend/common/epoch.h
+//
+// Copyright (c) 2015-16, Carnegie Mellon University Database Group
+//
+//===----------------------------------------------------------------------===//
 
 #pragma once
 
