@@ -31,6 +31,8 @@
 #include "backend/expression/tuple_value_expression.h"
 #include "backend/expression/expression_util.h"
 #include "backend/planner/hash_plan.h"
+#include "backend/planner/insert_plan.h"
+#include "backend/planner/delete_plan.h"
 
 #include "commands/dbcommands.h"
 #include "nodes/pg_list.h"
@@ -486,7 +488,7 @@ bool DDLTable::CheckNullExist( storage::DataTable* targetTable, std::string colu
   while ( executor.Execute() ) {
     result_tiles.emplace_back( executor.GetOutput());
   }
-
+  txn_manager.CommitTransaction();
   auto result_iter = result_tiles.begin();
   for( ; result_iter != result_tiles.end(); result_iter++){
     size_t tuple_count = (*result_iter)->GetTupleCount();
@@ -556,7 +558,48 @@ bool DDLTable::AddIndex( Oid relation_oid, IndexStmt *Istmt) {
                           idx->GetMethodType(),  INDEX_CONSTRAINT_TYPE_UNIQUE,
                           Istmt->unique, idx->GetKeyColumnNames());
   bool status = DDLIndex::CreateIndex(my_index_info);
-  return status;
+  if( status == false){
+     LOG_INFO("fail to create an index");
+     return false;
+  }
+  
+  // insert tuples before adding this constraint
+  planner::SeqScanPlan seq_scan(targetTable, nullptr, column_ids);
+  executor::SeqScanExecutor scanner(&seq_scan_node, context.get());
+  if( scanner.Init() == false){
+    LOG_WARN("ERROR INIT EXECUTOR");
+  }
+  std::vector<std::unique_ptr<executor::LogicalTile>> result_tiles;
+  while ( scanner.Execute() ) {
+    result_tiles.emplace_back( scanner.GetOutput());
+  }
+  // clear the existing table
+  planner::DeletePlan delete_node(targetTable, true);
+  executor::DeleteExecutor delete_executor(&delete_node, context.get());
+  planner::SeqScanPlan delete_seq_scan(targetTable, nullptr, column_ids);
+  executor::SeqScanExecutor delete_scanner(&delete_seq_scan, context.get());
+  delete_executor.AddChild(&delete_scanner);
+  delete_executor.Init();
+  delete_executor.Execute();
+
+  // inserting tuples
+  auto result_iter = result_tiles.begin();
+  for( ; result_iter != result_tiles.end(); result_iter++){
+    size_t tuple_count = (*result_iter)->GetTupleCount();
+    for(size_t tuple_iter = 0; tuple_iter < tuple_count; tuple_iter++ ){
+      std::unique_ptr<storage::Tuple> tuple(new storage::Tuple(targetSchema, true));
+      for (oid_t column_itr = 0; column_itr < targetSchema->GetColumnCount(); column_itr++)
+        tuple->SetValue(column_itr, (*result_iter)->GetValue(tuple_iter,column_itr), nullptr);
+      
+      planner::InsertPlan insert_node(targetTable, std::move(tuple));
+      executor::InsertExecutor insert_executor(&insert_node, context.get());
+      insert_executor.Init();
+      insert_executor.Execute();
+    }
+  }
+  txn_manager.CommitTransaction();
+  return true;
+
 
 }
 
