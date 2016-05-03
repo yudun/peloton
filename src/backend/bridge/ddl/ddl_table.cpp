@@ -26,6 +26,12 @@
 #include "backend/executor/executors.h"
 #include "backend/concurrency/transaction_manager_factory.h"
 
+
+#include "backend/expression/abstract_expression.h"
+#include "backend/expression/tuple_value_expression.h"
+#include "backend/expression/expression_util.h"
+#include "backend/planner/hash_plan.h"
+
 #include "commands/dbcommands.h"
 #include "nodes/pg_list.h"
 #include "parser/parse_utilcmd.h"
@@ -218,7 +224,7 @@ bool DDLTable::AlterTable(Oid relation_oid, AlterTableStmt *Astmt) {
       
       case AT_AddIndex:{
         IndexStmt *Istmt = (IndexStmt *)cmd->def;
-         bool status = AddIndex(Istmt);
+         bool status = AddIndex( relation_oid, Istmt);
           if (status == false) {
              LOG_WARN("Failed to add an index");
           }
@@ -499,16 +505,59 @@ bool DDLTable::CheckNullExist( storage::DataTable* targetTable, std::string colu
  * @param IndexStmt *Istmt, index statement
  * @return true if we successfull add this index, false otherwise
  */
-bool DDLTable::AddIndex( IndexStmt *Istmt) {
-
+bool DDLTable::AddIndex( Oid relation_oid, IndexStmt *Istmt) {
+  
   IndexInfo * idx = DDLIndex::ConstructIndexInfoByParsingIndexStmt(Istmt);
-  LOG_INFO("add index id = %u", idx->GetOid());
+  // prepare for seq scan to get all the tuples in the table now
+  oid_t database_oid = Bridge::GetCurrentDatabaseOid();
+  assert(database_oid);
+  auto &manager = catalog::Manager::GetInstance();
+  storage::Database *db = manager.GetDatabaseWithOid(database_oid);
+  storage::DataTable* targetTable = db->GetTableWithOid(relation_oid);
+  catalog::Schema* targetSchema = targetTable->GetSchema();
+
+  std::vector<std::unique_ptr<const expression::AbstractExpression>>
+          hash_keys;
+
+  std::vector<oid_t> column_ids;
+  for( auto name_iterator : idx->GetKeyColumnNames() ){  
+    for(oid_t column_iterator = 0; column_iterator < targetSchema->GetColumnCount(); column_iterator++){
+       column_ids.push_back(column_iterator);     
+      if( targetSchema->GetColumn(column_iterator).GetName() == name_iterator ){  
+        expression::AbstractExpression * attrs = new expression::TupleValueExpression(1, column_iterator);
+        hash_keys.emplace_back(attrs);
+      }
+    }
+  }
+  planner::HashPlan hash_plan_node(hash_keys);
+  executor::HashExecutor hash_executor(&hash_plan_node, nullptr);
+
+  planner::SeqScanPlan seq_scan_node(targetTable, nullptr, column_ids);
+  auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
+  auto txn = txn_manager.BeginTransaction();
+  std::unique_ptr<executor::ExecutorContext> context(
+          new executor::ExecutorContext(txn));
+  executor::SeqScanExecutor scan_executor(&seq_scan_node, context.get());
+  hash_executor.AddChild(&scan_executor);
+  if(hash_executor.Init() == false){
+    LOG_WARN("ERROR INIT EXECUTOR");
+  }
+  while(hash_executor.Execute());
+
+  auto &hash_table = hash_executor.GetHashTable();
+  for(auto hash_table_iterator : hash_table ){
+    if(hash_table_iterator.second.size() > 1){
+    throw ConstraintException("EXISTS DUPLICATED VALUES, FAIL TO ADD UNIQUE CONSTRAINT "+idx->GetIndexName());  
+    return false;
+    }
+  }
+
   IndexInfo my_index_info(idx->GetIndexName(), idx->GetOid(),idx->GetTableName(),
-                            idx->GetMethodType(),  INDEX_CONSTRAINT_TYPE_UNIQUE,
-                                    Istmt->unique, idx->GetKeyColumnNames());
+                          idx->GetMethodType(),  INDEX_CONSTRAINT_TYPE_UNIQUE,
+                          Istmt->unique, idx->GetKeyColumnNames());
   bool status = DDLIndex::CreateIndex(my_index_info);
-  LOG_INFO("add index success = %d", status);
   return status;
+
 }
 
 /**
