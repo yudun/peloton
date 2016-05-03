@@ -31,6 +31,7 @@ void GCManager::StartGC() {
 }
 
 void GCManager::StopGC() {
+  LOG_INFO("The memory usage is %lu bytes", catalog::Manager::GetInstance().GetMemoryFootprint());
   if (this->gc_type_ == GC_TYPE_OFF) {
     return;
   }
@@ -79,10 +80,10 @@ void GCManager::PerformGC() {
   // Check if we can move anything from the possibly free list to the free list.
   // auto &manager = catalog::Manager::GetInstance();
 
-  while (true) {
+  //while (true) {
     LOG_INFO("Polling GC thread...");
-    auto k = catalog::Manager::GetInstance().GetMemoryFootprint();
-    LOG_INFO("The memory usage before GC is %lu bytes", k);
+    //auto k = catalog::Manager::GetInstance().GetMemoryFootprint();
+    //LOG_INFO("The memory usage before GC is %lu bytes", k);
     auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
     auto max_cid = txn_manager.GetMaxCommittedCid();
 
@@ -137,12 +138,12 @@ void GCManager::PerformGC() {
           possibly_free_list_.Push(tuple_metadata);
         }
       }  // end for
-    LOG_INFO("The memory usage after GC is %lu bytes", catalog::Manager::GetInstance().GetMemoryFootprint());
+      //LOG_INFO("The memory usage after GC is %lu bytes", catalog::Manager::GetInstance().GetMemoryFootprint());
     }    // end if
     if (is_running_ == false) {
       return;
     }
-  }
+  //}
 }
 
 void GCManager::Poll() {
