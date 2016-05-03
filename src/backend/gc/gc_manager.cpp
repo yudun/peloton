@@ -80,8 +80,9 @@ void GCManager::PerformGC() {
   // auto &manager = catalog::Manager::GetInstance();
 
   while (true) {
-    LOG_DEBUG("Polling GC thread...");
-    LOG_DEBUG("The memory usage before GC is %lu bytes", catalog::Manager::GetInstance().GetMemoryFootprint());
+    LOG_INFO("Polling GC thread...");
+    auto k = catalog::Manager::GetInstance().GetMemoryFootprint();
+    LOG_INFO("The memory usage before GC is %lu bytes", k);
     auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
     auto max_cid = txn_manager.GetMaxCommittedCid();
 
@@ -136,7 +137,7 @@ void GCManager::PerformGC() {
           possibly_free_list_.Push(tuple_metadata);
         }
       }  // end for
-    LOG_DEBUG("The memory usage after GC is %lu bytes", catalog::Manager::GetInstance().GetMemoryFootprint());
+    LOG_INFO("The memory usage after GC is %lu bytes", catalog::Manager::GetInstance().GetMemoryFootprint());
     }    // end if
     if (is_running_ == false) {
       return;
@@ -146,7 +147,7 @@ void GCManager::PerformGC() {
 
 void GCManager::Poll() {
   while (1) {
-    LOG_DEBUG("Polling GC thread...");
+    LOG_INFO("Polling GC thread...");
     PerformGC();
     std::this_thread::sleep_for(std::chrono::seconds(2));
   }
@@ -217,8 +218,6 @@ size_t GCManager::GetRecycledTupleSlotCountPerTileGroup(const oid_t& table_id, c
           free_list.second -> Push(tuple_metadata);
         }
       }
-    } else {
-      assert(false);
     }
   }
 
