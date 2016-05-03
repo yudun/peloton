@@ -2356,6 +2356,8 @@ AddRelationNewConstraints(Relation rel,
 
 		//store plat cooked_expr to the state, used by peloton
 		char * temp = nodeToString(expr);
+
+		Node* tempback = (Node *) stringToNode(temp);
 		cdef->cooked_expr = temp;
 
 		numchecks++;

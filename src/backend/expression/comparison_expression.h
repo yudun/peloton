@@ -199,7 +199,7 @@ class ComparisonExpression : public AbstractExpression {
     m_right = right;
   };
 
-  inline Value Evanluate(const AbstractTuple *tuple1,
+  inline Value Evaluate(const AbstractTuple *tuple1,
                         const AbstractTuple *tuple2,
                         executor::ExecutorContext *context) const {
     LOG_TRACE("Evaluate %s. left %s, right %s. ret=%s", OP::op_name(),
