@@ -23,6 +23,7 @@
 #include "backend/storage/table_factory.h"
 #include "backend/index/index_factory.h"
 #include "backend/bridge/ddl/bridge.h"
+#include "backend/bridge/ddl/ddl_index.h"
 
 #include "catalog/constraints_tests_util.h"
 #include "concurrency/transaction_tests_util.h"
@@ -37,6 +38,7 @@
 #define FOREIGHN_KEY_CASCADE_UPDATE_TEST
 #define FOREIGHN_KEY_SETNULL_UPDATE_TEST
 #define DROPSETNOTNULL_TEST
+#define DROPSETUNIQUE_TEST
 
 namespace peloton {
 namespace test {
@@ -848,6 +850,52 @@ TEST_F(ConstraintsTests, ForeignKeyTest) {
         }
 #endif
 
+#ifdef DROPSETUNIQUE_TEST
+TEST_F(ConstraintsTests, DropSetUniqueTest) {
+
+    auto &manager = catalog::Manager::GetInstance();
+    oid_t current_db_oid = bridge::Bridge::GetCurrentDatabaseOid();
+    auto newdb = new storage::Database(current_db_oid);
+    LOG_INFO("current_db_oid = %u", current_db_oid);
+     manager.AddDatabase(newdb);
+    
+    std::unique_ptr<storage::DataTable> data_table(
+            ConstraintsTestsUtil::CreateAndPopulateTable());
+    newdb->AddTable(data_table.get() );
+
+    auto &txn_manager1 = concurrency::TransactionManagerFactory::GetInstance();
+
+    // begin this transaction
+    std::vector<std::string> column_name = {"COL_B"};
+    bridge::IndexInfo my_index_info("column2_unique", data_table->GetIndexCount(), "TEST_TABLE",
+                           INDEX_TYPE_BTREE,  INDEX_CONSTRAINT_TYPE_UNIQUE,
+                            true, column_name );
+
+    peloton::bridge::DDLIndex::CreateIndex(my_index_info);
+    auto txn1 = txn_manager1.BeginTransaction();
+
+    // Test1: insert a tuple with duplicated column 3
+    // should fail
+    bool hasException = false;
+    try {
+        ConstraintsTestsUtil::ExecuteInsert(
+                txn1, data_table.get(),
+                ValueFactory::GetIntegerValue(
+                        ConstraintsTestsUtil::PopulatedValue(15, 0)),
+                ValueFactory::GetIntegerValue(
+                        ConstraintsTestsUtil::PopulatedValue(15, 1)),
+                ValueFactory::GetIntegerValue(
+                        ConstraintsTestsUtil::PopulatedValue(15, 2)),
+                ValueFactory::GetStringValue(
+                        std::to_string(ConstraintsTestsUtil::PopulatedValue(14, 3))));
+
+    } catch (ConstraintException e) {
+        hasException = true;
+    }
+    EXPECT_TRUE(hasException);
+    txn_manager1.CommitTransaction();
+}
+#endif
 
 }  // End test namespace
 }  // End peloton namespace
