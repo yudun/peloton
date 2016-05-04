@@ -102,6 +102,10 @@ class TransactionManager {
     current_txn->SetResult(result);
   }
 
+  Result GeTransactionResult() {
+    return current_txn->GetResult();
+  }
+
   //for use by recovery
   void SetNextCid(cid_t cid) { next_cid_ = cid; }
 

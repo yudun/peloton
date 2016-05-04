@@ -39,6 +39,7 @@ namespace catalog {
 bool ForeignKey::CheckDeleteConstraints(executor::ExecutorContext *executor_context,
                                         std::vector<storage::Tuple>& tuples){
 
+  LOG_INFO("Begin checking delete constraints");
   // get the source table
   oid_t database_oid = bridge::Bridge::GetCurrentDatabaseOid();
   auto &manager = catalog::Manager::GetInstance();
@@ -79,7 +80,6 @@ bool ForeignKey::CheckDeleteConstraints(executor::ExecutorContext *executor_cont
         // cascading delete associated tuples in the source table
         bool res = DeleteReferencingTupleOnCascading(executor_context,
                                                      source_table, &cur_tuple);
-
         if (!res)
           return false;
       }
@@ -328,7 +328,7 @@ bool ForeignKey::IsTupleReferencedBySourceTable(storage::DataTable* source_table
  * @param table the source table
  *        cur_tuple the tuple to be delete
  *        column_offsets foreign key's column offsets
- * @return true if cascade delete success
+ * @return true if cascade delete success or the deleted tuple doesn't exist
  */
 bool ForeignKey::DeleteReferencingTupleOnCascading(executor::ExecutorContext *executor_context,
                                                    storage::DataTable* source_table,
@@ -352,9 +352,20 @@ bool ForeignKey::DeleteReferencingTupleOnCascading(executor::ExecutorContext *ex
   delete_node.AddChild(std::move(seq_scan_node));
   delete_executor.AddChild(&seq_scan_executor);
 
-  delete_executor.Init();
+  assert(delete_executor.Init() == true);
 
-  return delete_executor.Execute();
+  auto res = delete_executor.Execute();
+  if (res) {
+    return true;
+  }
+  else {
+    // If the returned value is false, it can still be valid
+    // because it might simply because that the tuple to be deleted
+    // does not exist
+    auto &transaction_manager =
+        concurrency::TransactionManagerFactory::GetInstance();
+    return transaction_manager.GeTransactionResult() == RESULT_SUCCESS;
+  }
 }
 
 
@@ -457,7 +468,18 @@ bool ForeignKey::UpdateReferencingTupleOnCascading(executor::ExecutorContext *ex
 
   update_executor.Init();
 
-  return update_executor.Execute();
+  auto res = update_executor.Execute();
+  if (res) {
+    return true;
+  }
+  else {
+    // If the returned value is false, it can still be valid
+    // because it might simply because that the tuple to be updated
+    // does not exist
+    auto &transaction_manager =
+        concurrency::TransactionManagerFactory::GetInstance();
+    return transaction_manager.GeTransactionResult() == RESULT_SUCCESS;
+  }
 }
 
 
