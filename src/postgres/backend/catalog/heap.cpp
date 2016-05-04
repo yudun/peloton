@@ -2361,12 +2361,9 @@ AddRelationNewConstraints(Relation rel,
 		printf("In postgres heap: store cooked check constrains: expr:%s\n",
 							temp);
 
-		cdef->cooked_expr = temp;
-		std::string stemp = std::string(temp);
-		cdef->str_expr = stemp;
-		char tc[1024];
-		strcpy(tc,cdef->str_expr.c_str());
-		Node* tempback = (Node *) stringToNode(tc);
+		char* str_expr = new char[strlen(temp)+1];
+		strcpy(str_expr, temp);
+		cdef->cooked_expr = str_expr;
 
 		numchecks++;
 

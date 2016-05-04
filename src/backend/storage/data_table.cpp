@@ -744,13 +744,11 @@ oid_t DataTable::GetIndexCount() const { return indexes_.size(); }
 // FOREIGN KEYS
 //===--------------------------------------------------------------------===//
 
-void DataTable:: AddCheckPredicate(std::vector<std::string> new_predicates){
+void DataTable:: AddCheckPredicate(std::vector<char *> new_predicates){
 
   for(auto str:new_predicates){
-    char* expr = new char[str.size()+1];
-    strcpy(expr, str.c_str());
-    check_predicates_.push_back(expr);
-    LOG_INFO("add check constrains: %s\n", expr);
+    check_predicates_.push_back(str);
+    LOG_INFO("add check constrains: %s\n", str);
   }
 }
 

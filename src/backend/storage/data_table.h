@@ -155,7 +155,7 @@ class DataTable : public AbstractTable {
 
   void AddForeignKey(catalog::ForeignKey *key);
 
-  void AddCheckPredicate(std::vector<std::string> check_predicates);
+  void AddCheckPredicate(std::vector<char *> check_predicates);
 
   void AddReferringForeignKey(catalog::ForeignKey *const key);
 

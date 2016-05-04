@@ -202,7 +202,7 @@ bool DDLTable::CreateTableCheck(Oid relation_oid, std::string table_name,
 
   //TODO:Here only check constrain be added
 
-  std::vector<std::string> check_predicates;
+  std::vector<char *> check_predicates;
   if(Cstmt != NULL && Cstmt->constraints != NULL){
     List *newConstraints = Cstmt->constraints;
     ListCell   *cell;
@@ -214,7 +214,7 @@ bool DDLTable::CreateTableCheck(Oid relation_oid, std::string table_name,
 
 //      expression::AbstractExpression *predicate =
 //          ExprTransformer::TransformExpr(reinterpret_cast<ExprState *>(cdef));
-      check_predicates.push_back(cdef->str_expr);
+      check_predicates.push_back(cdef->cooked_expr);
     }
 
   }
