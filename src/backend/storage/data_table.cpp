@@ -291,7 +291,7 @@ bool DataTable::InsertInIndexes(const storage::Tuple *tuple,
         index->InsertEntry(key.get(), location);
         break;
     }
-    LOG_TRACE("Index constraint check on %s passed.", index->GetName().c_str());
+    LOG_INFO("Index constraint check on %s passed.", index->GetName().c_str());
   }
 
   return true;
@@ -344,7 +344,10 @@ bool DataTable::InsertInSecondaryIndexes(const storage::Tuple *tuple,
  * @returns True on success, false if any foreign key constraints fail
  */
 bool DataTable::CheckForeignKeyConstraints(const storage::Tuple *tuple) {
+  LOG_INFO("foreign_keys num = %lu", foreign_keys_.size());
   for (auto foreign_key : foreign_keys_) {
+    LOG_INFO("src_table_oid = %u", GetOid());
+    LOG_INFO("fk = %s", foreign_key->GetFKColumnNames()[0].c_str());
     LOG_INFO("This foreignKey is from table %u:index %u to table %u:index %u",
              foreign_key->GetSrcTableOid(),
              foreign_key->GetSrcIndexOid(),
@@ -721,6 +724,7 @@ void DataTable::AddForeignKey(catalog::ForeignKey *key) {
     auto &manager = catalog::Manager::GetInstance();
     auto sink_table = manager.GetTableWithOid(database_oid, key->GetSinkTableOid());
     sink_table->AddReferringForeignKey(key);
+    LOG_INFO("src_table = %u, sink_table = %u", GetOid(), sink_table->GetOid());
   }
 }
 

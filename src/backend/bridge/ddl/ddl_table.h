@@ -53,7 +53,7 @@ class DDLTable {
   static bool DropTable(Oid table_oid);
 
   // Set reference tables to the table based on given relation oid
-  static bool SetReferenceTables(std::vector<catalog::ForeignKey> &foreign_keys,
+  static bool SetReferenceTables(std::vector<catalog::ForeignKey*> &foreign_keys,
                                  oid_t relation_oid);
 
  private:

@@ -302,7 +302,7 @@ bool DDLTable::DropTable(Oid table_oid) {
 bool DDLTable::AddConstraint(Oid relation_oid, Constraint *constraint, char* name) {
   ConstraintType contype = PostgresConstraintTypeToPelotonConstraintType(
       (PostgresConstraintType)constraint->contype);
-  std::vector<catalog::ForeignKey> foreign_keys;
+  std::vector<catalog::ForeignKey*> foreign_keys;
   std::string conname;
 
   if (constraint->conname != NULL) {
@@ -331,24 +331,32 @@ bool DDLTable::AddConstraint(Oid relation_oid, Constraint *constraint, char* nam
 
       ListCell *column;
       if (constraint->pk_attrs != NULL && constraint->pk_attrs->length > 0) {
-        oid_t offset = 0;
         foreach (column, constraint->pk_attrs) {
           char *attname = strVal(lfirst(column));
           pk_column_names.push_back(attname);
+          oid_t offset = pk_table->GetSchema()->GetColumnOffsetByName(attname);
           pk_column_offsets.push_back(offset);
-          offset ++;
-        }
-      }
-      if (constraint->fk_attrs != NULL && constraint->fk_attrs->length > 0) {
-        oid_t offset = 0;
-        foreach (column, constraint->fk_attrs) {
-          char *attname = strVal(lfirst(column));
-          fk_column_names.push_back(attname);
-          fk_column_offsets.push_back(offset);
-          offset ++;
         }
       }
 
+      if (constraint->fk_attrs != NULL && constraint->fk_attrs->length > 0) {
+        foreach (column, constraint->fk_attrs) {
+          char *attname = strVal(lfirst(column));
+          fk_column_names.push_back(attname);
+          oid_t offset = fk_table->GetSchema()->GetColumnOffsetByName(attname);
+          fk_column_offsets.push_back(offset);
+        }
+      }
+
+      LOG_INFO("srcid=%u sinkid=%u, pkidx=%u fkidx=%u, pkcol=%s pkoff=%u,"
+                   "fkcol=%s fkoff=%u, up_type=%c, deltype=%c, %s",
+               relation_oid, PrimaryKeyTableId,
+               pk_table->GetIndexIdWithColumnOffsets(pk_column_offsets),
+               fk_table->GetIndexIdWithColumnOffsets(pk_column_offsets),
+               pk_column_names[0].c_str(), pk_column_offsets[0],
+               fk_column_names[0].c_str(), fk_column_offsets[0],
+               constraint->fk_upd_action,
+               constraint->fk_del_action, conname.c_str());
 
       catalog::ForeignKey *foreign_key = new catalog::ForeignKey(
           relation_oid, PrimaryKeyTableId,
@@ -358,7 +366,8 @@ bool DDLTable::AddConstraint(Oid relation_oid, Constraint *constraint, char* nam
           fk_column_names, fk_column_offsets,
           CharToForeignKeyActionType(constraint->fk_upd_action),
           CharToForeignKeyActionType(constraint->fk_del_action), conname);
-      foreign_keys.push_back(*foreign_key);
+
+      foreign_keys.push_back(foreign_key);
       break;
     }
     case CONSTRAINT_TYPE_UNIQUE:{
@@ -544,7 +553,7 @@ bool DDLTable::DropConstraint(Oid relation_oid,  char* conname ){
  * @return true if we set the reference tables, false otherwise
  */
 bool DDLTable::SetReferenceTables(
-    std::vector<catalog::ForeignKey> &foreign_keys, oid_t relation_oid) {
+    std::vector<catalog::ForeignKey*> &foreign_keys, oid_t relation_oid) {
   assert(relation_oid);
   oid_t database_oid = Bridge::GetCurrentDatabaseOid();
   assert(database_oid);
@@ -554,7 +563,7 @@ bool DDLTable::SetReferenceTables(
           database_oid, relation_oid);
 
   for (auto foreign_key : foreign_keys) {
-    current_table->AddForeignKey(&foreign_key);
+    current_table->AddForeignKey(foreign_key);
   }
 
   return true;

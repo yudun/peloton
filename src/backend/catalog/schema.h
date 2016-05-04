@@ -135,6 +135,14 @@ class Schema : public Printable {
 
   inline std::vector<Column> GetColumns() const { return columns; }
 
+  inline oid_t GetColumnOffsetByName(char * col_name) const {
+    for (unsigned i = 0; i < columns.size(); i++) {
+      if(columns[i].column_name.compare(col_name) == 0)
+        return i;
+    }
+    return INVALID_OID;
+  }
+
   // Return the number of columns in the schema for the tuple.
   inline oid_t GetColumnCount() const { return column_count; }
 
