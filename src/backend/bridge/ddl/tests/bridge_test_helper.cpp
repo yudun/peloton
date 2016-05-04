@@ -230,13 +230,13 @@ void BridgeTest::CreateSampleForeignKey(oid_t pktable_oid,
   std::vector<std::string> fk_column_names;
   pk_column_names.push_back("name");
   fk_column_names.push_back("salary");
-  std::vector<catalog::ForeignKey> foreign_keys;
+  std::vector<catalog::ForeignKey*> foreign_keys;
   catalog::ForeignKey *foreign_key =
       new catalog::ForeignKey(table_oid, pktable_oid, INVALID_OID, INVALID_OID,
                               pk_column_names, {1}, fk_column_names, {3},
                               FOREIGNKEY_ACTION_RESTRICT, FOREIGNKEY_ACTION_CASCADE,
                               "THIS_IS_FOREIGN_CONSTRAINT");
-  foreign_keys.push_back(*foreign_key);
+  foreign_keys.push_back(foreign_key);
 
   // Current table ----> reference table
   status = DDLTable::SetReferenceTables(foreign_keys, table_oid);

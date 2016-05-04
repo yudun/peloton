@@ -44,6 +44,11 @@ class DDLTable {
 
   static bool ExecDropStmt(Node *parsertree);
 
+  static bool CreateTableCheck(Oid relation_oid, std::string table_name,
+                          std::vector<catalog::Column> column_infos,
+                          catalog::Schema *schema = NULL,
+                          CreateStmt *Cstmt = NULL);
+
   static bool CreateTable(Oid relation_oid, std::string table_name,
                           std::vector<catalog::Column> column_infos,
                           catalog::Schema *schema = NULL);
@@ -53,7 +58,7 @@ class DDLTable {
   static bool DropTable(Oid table_oid);
 
   // Set reference tables to the table based on given relation oid
-  static bool SetReferenceTables(std::vector<catalog::ForeignKey> &foreign_keys,
+  static bool SetReferenceTables(std::vector<catalog::ForeignKey*> &foreign_keys,
                                  oid_t relation_oid);
 
  private:
