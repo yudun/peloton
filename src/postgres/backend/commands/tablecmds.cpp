@@ -698,10 +698,14 @@ DefineRelation(CreateStmt *stmt, char relkind, Oid ownerId,
 	 * work unless we have a pre-existing relation. So, the transformation has
 	 * to be postponed to this final step of CREATE TABLE.
 	 */
-	if (rawDefaults || stmt->constraints)
-		AddRelationNewConstraints(rel, rawDefaults, stmt->constraints,
-								  true, true, false);
 
+	if (rawDefaults || stmt->constraints) {
+		List *cookedConstraints =
+				AddRelationNewConstraints(rel, rawDefaults, stmt->constraints,
+																	true, true, false);
+		//peloton:: update the constrains
+		//stmt->constraints = cookedConstraints;
+	}
 	ObjectAddressSet(address, RelationRelationId, relationId);
 
 	/*
@@ -2880,7 +2884,7 @@ AlterTable(Oid relid, LOCKMODE lockmode, AlterTableStmt *stmt)
 	/* Caller is required to provide an adequate lock. */
 	rel = relation_open(relid, NoLock);
 
-	//CheckTableNotInUse(rel, "ALTER TABLE");
+	CheckTableNotInUse(rel, "ALTER TABLE");
 
 	ATController(stmt,
 				 rel, stmt->cmds, interpretInhOption(stmt->relation->inhOpt),

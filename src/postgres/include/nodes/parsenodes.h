@@ -20,6 +20,7 @@
 #ifndef PARSENODES_H
 #define PARSENODES_H
 
+#include <string>
 #include "nodes/bitmapset.h"
 #include "nodes/lockoptions.h"
 #include "nodes/primnodes.h"
