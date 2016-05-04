@@ -36,8 +36,7 @@
 #define FOREIGHN_KEY_RESTRICT_UPDATE_TEST
 #define FOREIGHN_KEY_CASCADE_UPDATE_TEST
 #define FOREIGHN_KEY_SETNULL_UPDATE_TEST
-
-namespace peloton {
+#define DROPSETNOTNULL_TEST
 namespace test {
 
 //===--------------------------------------------------------------------===//
@@ -758,6 +757,95 @@ TEST_F(ConstraintsTests, ForeignKeyTest) {
   // remember to drop this database from the manager, this will also indirectly delete all tables in this database
   manager.DropDatabaseWithOid(current_db_oid);
 }
+
+#ifdef DROPSETNOTNULL_TEST
+TEST_F(ConstraintsTests, DROPSETNOTNULLTest) {
+
+    std::unique_ptr<storage::DataTable> data_table(
+            ConstraintsTestsUtil::CreateAndPopulateTable());
+
+    auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
+
+    // begin this transaction
+    auto txn1 = txn_manager.BeginTransaction();
+
+    // Test1: insert a tuple with column 1 = null
+    // should succeed
+    bool hasException = false;
+    try {
+        ConstraintsTestsUtil::ExecuteInsert(
+                txn1, data_table.get(),
+                ValueFactory::GetIntegerValue(
+                        ConstraintsTestsUtil::PopulatedValue(15, 0)),
+                ValueFactory::GetNullValue(),
+                ValueFactory::GetIntegerValue(
+                        ConstraintsTestsUtil::PopulatedValue(15, 2)),
+                ValueFactory::GetStringValue(
+                        std::to_string(ConstraintsTestsUtil::PopulatedValue(15, 3))));
+
+    } catch (ConstraintException e) {
+        hasException = true;
+    }
+    EXPECT_TRUE(!hasException);
+    txn_manager.CommitTransaction();
+            
+    // SET column2 NOT NULL
+    data_table->GetSchema()->SetNotNull(
+            catalog::Constraint(CONSTRAINT_TYPE_NOTNULL,"COL_B"));
+
+    // Test2: insert a tuple with column 2 = null
+    // should fail
+    txn_manager = concurrency::TransactionManagerFactory::GetInstance();
+    auto txn2 = txn_manager.BeginTransaction();
+    hasException = false;
+    try {
+        ConstraintsTestsUtil::ExecuteInsert(
+                txn2, data_table.get(),
+                ValueFactory::GetIntegerValue(
+                        ConstraintsTestsUtil::PopulatedValue(16, 0)),
+                ValueFactory::GetNullValue(),
+                ValueFactory::GetIntegerValue(
+                        ConstraintsTestsUtil::PopulatedValue(16, 2)),
+                ValueFactory::GetStringValue(
+                        std::to_string(ConstraintsTestsUtil::PopulatedValue(16, 3))));
+
+    } catch (ConstraintException e) {
+        hasException = true;
+    }
+    EXPECT_TRUE(hasException);
+    txn_manager.CommitTransaction();
+            
+    // Drop not null on column2
+    data_table->GetSchema()->DropNotNull(
+        catalog::Constraint(CONSTRAINT_TYPE_NOTNULL,"COL_B"));
+
+    // Test 3 insert a tuple with column 2 = null
+    // should succeed
+    txn_manager = concurrency::TransactionManagerFactory::GetInstance();
+    auto txn3 = txn_manager.BeginTransaction();
+
+    hasException = false;
+    try {
+        ConstraintsTestsUtil::ExecuteInsert(
+                txn3, data_table.get(),
+                ValueFactory::GetIntegerValue(
+                        ConstraintsTestsUtil::PopulatedValue(16, 0)),
+                ValueFactory::GetNullValue(),
+                ValueFactory::GetIntegerValue(
+                        ConstraintsTestsUtil::PopulatedValue(16, 2)),
+                ValueFactory::GetStringValue(
+                        std::to_string(ConstraintsTestsUtil::PopulatedValue(16, 3))));
+
+    } catch (ConstraintException e) {
+        hasException = true;
+    }
+    EXPECT_TRUE(!hasException);
+    // commit this transactio
+    txn_manager.CommitTransaction();
+}
+#endif
+
+
 
 
 }  // End test namespace

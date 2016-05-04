@@ -223,7 +223,7 @@ bool DDLTable::AlterTable(Oid relation_oid, AlterTableStmt *Astmt) {
     switch (cmd->subtype) {
       // case AT_AddColumn:  /* add column */
       // case AT_DropColumn:  /* drop column */
-      
+      LOG_INFO("subtype = %d",cmd->subtype);
       case AT_AddIndex:{
         IndexStmt *Istmt = (IndexStmt *)cmd->def;
          bool status = AddIndex( relation_oid, Istmt);
@@ -553,9 +553,12 @@ bool DDLTable::AddIndex( Oid relation_oid, IndexStmt *Istmt) {
     return false;
     }
   }
-
+  IndexConstraintType type = INDEX_CONSTRAINT_TYPE_UNIQUE;
+  if(Istmt->primary)
+    type = INDEX_CONSTRAINT_TYPE_PRIMARY_KEY;
+   
   IndexInfo my_index_info(idx->GetIndexName(), idx->GetOid(),idx->GetTableName(),
-                          idx->GetMethodType(),  INDEX_CONSTRAINT_TYPE_UNIQUE,
+                          idx->GetMethodType(),  type,
                           Istmt->unique, idx->GetKeyColumnNames());
   bool status = DDLIndex::CreateIndex(my_index_info);
   if( status == false){
