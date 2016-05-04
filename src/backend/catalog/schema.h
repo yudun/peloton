@@ -73,9 +73,14 @@ class Schema : public Printable {
       const std::vector<Schema *> &schema_list,
       const std::vector<std::vector<oid_t>> &subsets);
 
-  // Drop Not Null constrains
+  // Drop Not Null constraints
   bool DropNotNull(Constraint constraint);
+  // Set Not Null constraints
+  bool SetNotNull(Constraint constraint);
+  bool ExistConstrain(Constraint constraint);
 
+  // Drop constraints
+  oid_t DropConstraint(char * conname);
 
   // Compare two schemas
   bool operator==(const Schema &other) const;

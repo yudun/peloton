@@ -15,6 +15,7 @@
 #include "backend/catalog/schema.h"
 #include "backend/catalog/foreign_key.h"
 #include "backend/bridge/ddl/ddl_index.h"
+#include "backend/storage/data_table.h"
 
 #include "postgres.h"
 #include "c.h"
@@ -61,8 +62,17 @@ class DDLTable {
                                  oid_t relation_oid);
 
  private:
-  static bool DropNotNull(Oid relation_oid, Constraint *constraint);
-  static bool AddConstraint(Oid relation_oid, Constraint *constraint);
+
+  // Functions for alter table statements
+  static bool DropNotNull(Oid relation_oid, char *connname);
+  static bool SetNotNull(Oid relation_oid, char *conname);
+  static bool CheckNullExist(storage::DataTable* targetTable, std::string column_name);
+  // Add foreign key constraint
+  static bool AddConstraint(Oid relation_oid, Constraint *constraint, char* name);
+  // Dynamically add unique and primary constraints
+  static bool AddIndex(IndexStmt * Istmt);
+  // Dynamically drop constraint
+  static bool DropConstraint(Oid relation_oid, char* conname);
 };
 
 }  // namespace bridge

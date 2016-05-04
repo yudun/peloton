@@ -10,7 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <backend/planner/seq_scan_plan.h>
+#include "backend/planner/seq_scan_plan.h"
+#include "backend/expression/expression_util.h"
 #include "backend/executor/delete_executor.h"
 #include "backend/executor/executor_context.h"
 
@@ -56,7 +57,6 @@ bool DeleteExecutor::DInit() {
   const planner::DeletePlan &node = GetPlanNode<planner::DeletePlan>();
   target_table_ = node.GetTable();
   assert(target_table_);
-
   return true;
 }
 
@@ -91,100 +91,12 @@ bool DeleteExecutor::DExecute() {
   LOG_TRACE("Transaction ID: %lu",
             executor_context_->GetTransaction()->GetTransactionId());
 
-  // Check the foreign key constraints for possible cascading action
-  oid_t referedFKNum = target_table_->GetReferedForeignKeyCount();
-
-  for (oid_t i = 0; i < referedFKNum; ++i) {
-    auto foreign_key = target_table_->GetRefferedForeignKey(i);
-
-    bool isReferenced = false;
-    oid_t database_oid = bridge::Bridge::GetCurrentDatabaseOid();
-    // get source table
-    auto &manager = catalog::Manager::GetInstance();
-    auto source_table = manager.GetTableWithOid(database_oid, foreign_key->GetSrcTableOid());
-    assert(source_table);
-
-
-    switch (foreign_key->GetDeleteAction()) {
-      case FOREIGNKEY_ACTION_NOACTION:
-      case FOREIGNKEY_ACTION_RESTRICT: {
-        // get the index associated with the referencing keys
-        index::Index* fk_index = source_table->GetIndexWithOid(foreign_key->GetSrcIndexOid());
-
-        for (oid_t visible_tuple_id : *source_tile) {
-          expression::ContainerTuple<LogicalTile> cur_tuple(source_tile.get(),
-                                                            visible_tuple_id);
-
-          // Build referening key from this tuple to be used
-          // to search the index
-          std::unique_ptr<catalog::Schema>
-              foreign_key_schema(catalog::Schema::CopySchema(source_table->GetSchema(),
-                                                             foreign_key->GetFKColumnOffsets()));
-          std::unique_ptr<storage::Tuple> key(new storage::Tuple(foreign_key_schema.get(), true));
-
-          for (oid_t offset : foreign_key->GetFKColumnOffsets()) {
-            key->SetValue(offset, cur_tuple.GetValue(offset), fk_index->GetPool());
-          }
-
-          LOG_INFO("Check restrict foreign key: %s", key->GetInfo().c_str());
-          // search this key in the source table's index
-          auto locations = fk_index->ScanKey(key.get());
-
-          auto &transaction_manager =
-              concurrency::TransactionManagerFactory::GetInstance();
-
-          // if visible key doesn't exist in the refered column
-          bool visible_key_exist = false;
-          if (locations.size() > 0) {
-            for(unsigned long i = 0; i < locations.size(); i++) {
-              auto tile_group_header = catalog::Manager::GetInstance()
-                  .GetTileGroup(locations[i].block)->GetHeader();
-              auto tuple_id = locations[i].offset;
-              if (transaction_manager.IsVisible(tile_group_header, tuple_id)) {
-                visible_key_exist = true;
-                break;
-              }
-            }
-          }
-
-          if (visible_key_exist) {
-            isReferenced = true;
-            break;
-          }
-        }
-        if (isReferenced) {
-          transaction_manager.SetTransactionResult(RESULT_FAILURE);
-          LOG_WARN("ForeignKey constraint violated: RESTRICT - "
-                       "Deleted tuple appears in referencing table %s",
-                   source_table->GetName().c_str());
-          return false;
-        }
-      }
-        break;
-
-      case FOREIGNKEY_ACTION_CASCADE: {
-        for (oid_t visible_tuple_id : *source_tile) {
-          expression::ContainerTuple<LogicalTile> cur_tuple(source_tile.get(),
-                                                            visible_tuple_id);
-
-          // cascading delete associated tuples in the source table
-          bool res = DeleteReferencingTupleOnCascading(source_table, cur_tuple,
-                                            foreign_key->GetFKColumnOffsets());
-
-          if (!res)
-            return false;
-        }
-      }
-        break;
-
-      case FOREIGNKEY_ACTION_SETNULL:
-      case FOREIGNKEY_ACTION_SETDEFAULT:
-        break;
-      default:
-        LOG_ERROR("Invalid logging_type :: %d", foreign_key->GetDeleteAction());
-        exit(EXIT_FAILURE);
-    }
-
+  // Check all the foreign key constraints referencing this table
+  // and perform possible cascading action
+  auto res = CheckDeleteForeignKeyConstraints(source_tile.get());
+  if (!res) {
+    transaction_manager.SetTransactionResult(RESULT_FAILURE);
+    return res;
   }
 
   // Delete each tuple
@@ -192,6 +104,9 @@ bool DeleteExecutor::DExecute() {
     oid_t physical_tuple_id = pos_lists[0][visible_tuple_id];
 
     LOG_INFO("delete tuple in table %s", target_table_->GetName().c_str());
+
+    ItemPointer old_location(tile_group_id, physical_tuple_id);
+
     LOG_TRACE("Visible Tuple id : %lu, Physical Tuple id : %lu ",
               visible_tuple_id, physical_tuple_id);
 
@@ -199,7 +114,7 @@ bool DeleteExecutor::DExecute() {
         true) {
       // if the thread is the owner of the tuple, then directly update in place.
 
-      transaction_manager.PerformDelete(tile_group_id, physical_tuple_id);
+      transaction_manager.PerformDelete(old_location);
 
     } else if (transaction_manager.IsOwnable(tile_group_header,
                                              physical_tuple_id) == true) {
@@ -213,84 +128,64 @@ bool DeleteExecutor::DExecute() {
       }
       // if it is the latest version and not locked by other threads, then
       // insert a new version.
-      storage::Tuple *new_tuple =
-          new storage::Tuple(target_table_->GetSchema(), true);
+      std::unique_ptr<storage::Tuple> new_tuple(new storage::Tuple(target_table_->GetSchema(), true));
 
       // Make a copy of the original tuple and allocate a new tuple
       expression::ContainerTuple<storage::TileGroup> old_tuple(
           tile_group, physical_tuple_id);
 
       // finally insert updated tuple into the table
-      ItemPointer location = target_table_->InsertEmptyVersion(new_tuple);
+      ItemPointer new_location = target_table_->InsertEmptyVersion(new_tuple.get());
 
-      if (location.block == INVALID_OID) {
-        delete new_tuple;
-        new_tuple = nullptr;
+      if (new_location.IsNull() == true) {
         LOG_TRACE("Fail to insert new tuple. Set txn failure.");
         transaction_manager.SetTransactionResult(Result::RESULT_FAILURE);
+        // yield the ownership of this tuple
+        transaction_manager.YieldOwnership(tile_group_header, tile_group_id,
+                                           physical_tuple_id);
         return false;
       }
-
-      auto res = transaction_manager.PerformDelete(tile_group_id,
-                                                   physical_tuple_id, location);
-      if (!res) {
-        transaction_manager.SetTransactionResult(RESULT_FAILURE);
-        return res;
-      }
-
+      transaction_manager.PerformDelete(old_location, new_location);
+      
       executor_context_->num_processed += 1;  // deleted one
-
-      delete new_tuple;
-      new_tuple = nullptr;
     } else {
       // transaction should be aborted as we cannot update the latest version.
       LOG_TRACE("Fail to update tuple. Set txn failure.");
       transaction_manager.SetTransactionResult(Result::RESULT_FAILURE);
       return false;
     }
-    LOG_INFO("delete single sccessful");
+    LOG_INFO("delete single tuple sccessful");
   }
 
   LOG_INFO("delete sccessful");
   return true;
 }
 
-expression::ComparisonExpression<expression::CmpEq> *DeleteExecutor::MakePredicate(
-    expression::ContainerTuple<LogicalTile> & cur_tuple,
-    std::vector<oid_t > column_offsets) {
-  auto tup_val_exp = new expression::TupleValueExpression(0, column_offsets[0]);
-  auto const_val_exp = new expression::ConstantValueExpression(
-      cur_tuple.GetValue(column_offsets[0]));
-  auto predicate = new expression::ComparisonExpression<expression::CmpEq>(
-      EXPRESSION_TYPE_COMPARE_EQUAL, tup_val_exp, const_val_exp);
+/**
+ * @brief Check the foreign key constraints for deletion.
+ *  It will perform proper action according to the DeleteAction type of each foreign key constraints
+ * @param source_tile the logical tile which contain all the tuple to be deleted
+ * @return true if all the foreign key constraints' action are succeefully perform for this deletion
+ */
+bool DeleteExecutor::CheckDeleteForeignKeyConstraints(LogicalTile * source_tile) {
+  // get the number of foreign key constraints that reference this table
+  oid_t referedFKNum = target_table_->GetReferedForeignKeyCount();
 
-  return predicate;
-}
+  if (referedFKNum > 0) {
+    // Get the physical base tuple list
+    // so that we can check all columns to ensure different foreign key constraints
+    std::vector<storage::Tuple> base_tuple_list = source_tile->GetBaseTupleListFromSourceTile();
 
-bool DeleteExecutor::DeleteReferencingTupleOnCascading(storage::DataTable* table,
-                                                       expression::ContainerTuple<LogicalTile> & cur_tuple,
-                                                       std::vector<oid_t > column_offsets) {
+    for (oid_t i = 0; i < referedFKNum; ++i) {
+      // get the current foreign key constraints to be checked
+      auto foreign_key = target_table_->GetRefferedForeignKey(i);
+      // if any foreign key constraint is violated, return false
+      if (!foreign_key->CheckDeleteConstraints(executor_context_, base_tuple_list))
+        return false;
+    }
+  }
 
-  LOG_INFO("Cascading delete foreign key offset %lu in table %s", column_offsets[0], table->GetName().c_str());
-
-  // Delete
-  planner::DeletePlan delete_node(table, false);
-  executor::DeleteExecutor delete_executor(&delete_node, executor_context_);
-
-  auto predicate = MakePredicate(cur_tuple, column_offsets);
-
-  // Scan
-  std::unique_ptr<planner::SeqScanPlan> seq_scan_node(
-      new planner::SeqScanPlan(table, predicate, column_offsets));
-  executor::SeqScanExecutor seq_scan_executor(seq_scan_node.get(),
-                                              executor_context_);
-
-  delete_node.AddChild(std::move(seq_scan_node));
-  delete_executor.AddChild(&seq_scan_executor);
-
-  delete_executor.Init();
-
-  return delete_executor.Execute();
+  return true;
 }
 
 }  // namespace executor

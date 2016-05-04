@@ -8,6 +8,7 @@ catalog_FILES = \
 				backend/catalog/column.cpp \
 				backend/catalog/schema.cpp \
 				backend/catalog/constraint.cpp \
+				backend/catalog/foreign_key.cpp \
 				backend/catalog/manager.cpp
 
 catalog_INCLUDES = \

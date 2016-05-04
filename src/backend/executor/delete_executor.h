@@ -16,8 +16,6 @@
 #include "backend/expression/container_tuple.h"
 
 #include <vector>
-#include <backend/storage/data_table.h>
-#include "backend/expression/comparison_expression.h"
 
 namespace peloton {
 
@@ -47,13 +45,8 @@ class DeleteExecutor : public AbstractExecutor {
  private:
   storage::DataTable *target_table_ = nullptr;
 
-  expression::ComparisonExpression<expression::CmpEq> *MakePredicate(
-      expression::ContainerTuple<LogicalTile> & cur_tuple,
-      std::vector<oid_t > column_offsets);
+  bool CheckDeleteForeignKeyConstraints(LogicalTile * source_tile);
 
-  bool DeleteReferencingTupleOnCascading(storage::DataTable* table,
-                                         expression::ContainerTuple<LogicalTile> & cur_tuple,
-                                         std::vector<oid_t > column_offsets);
 };
 
 }  // namespace executor

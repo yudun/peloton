@@ -119,7 +119,8 @@ bool DDLIndex::CreateIndex(IndexInfo index_info) {
           catalog::Constraint constraint(CONSTRAINT_TYPE_PRIMARY, index_name);
           tuple_schema->AddConstraint(tuple_schema_column_itr, constraint);
         } else if (index_type == INDEX_CONSTRAINT_TYPE_UNIQUE) {
-          catalog::Constraint constraint(CONSTRAINT_TYPE_UNIQUE, index_name);
+	  catalog::Constraint constraint(CONSTRAINT_TYPE_UNIQUE, index_name);
+          LOG_INFO("SetUniqueIndexOffset = %u", data_table->GetIndexCount());
           constraint.SetUniqueIndexOffset(data_table->GetIndexCount());
           tuple_schema->AddConstraint(tuple_schema_column_itr, constraint);
         }
@@ -138,8 +139,7 @@ bool DDLIndex::CreateIndex(IndexInfo index_info) {
 
   // Record the built index in the table
   data_table->AddIndex(index);
-
-  LOG_INFO("Created index(%lu)  %s on %s.", index_oid, index_name.c_str(),
+  LOG_INFO("Created index(%u)  %s on %s.", index_oid, index_name.c_str(),
            table_name.c_str());
 
   return true;

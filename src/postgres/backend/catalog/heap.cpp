@@ -77,6 +77,7 @@
 #include "utils/tqual.h"
 
 #include <postgres/include/nodes/pg_list.h>
+#include "backend/common/logger.h"
 
 
 /* Potentially set by pg_upgrade_support functions */
@@ -2357,8 +2358,15 @@ AddRelationNewConstraints(Relation rel,
 		//store plat cooked_expr to the state, used by peloton
 		char * temp = nodeToString(expr);
 
-		Node* tempback = (Node *) stringToNode(temp);
+		printf("In postgres heap: store cooked check constrains: expr:%s\n",
+							temp);
+
 		cdef->cooked_expr = temp;
+		std::string stemp = std::string(temp);
+		cdef->str_expr = stemp;
+		char tc[1024];
+		strcpy(tc,cdef->str_expr.c_str());
+		Node* tempback = (Node *) stringToNode(tc);
 
 		numchecks++;
 

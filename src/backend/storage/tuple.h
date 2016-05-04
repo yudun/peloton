@@ -122,6 +122,19 @@ class Tuple : public AbstractTuple {
     return GetValue(column_id).IsNull();
   }
 
+  // Is the every column value null ?
+  inline bool IsEveryColumnNull() const {
+    bool every_column_null = true;
+    auto column_count = GetColumnCount();
+    for (oid_t i = 0; i < column_count; i++) {
+      if (!GetValue(i).IsNull()) {
+        every_column_null = false;
+        break;
+      }
+    }
+    return every_column_null;
+  }
+
   // Is the tuple null ?
   inline bool IsNull() const { return tuple_data == NULL; }
 

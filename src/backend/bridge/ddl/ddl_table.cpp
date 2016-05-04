@@ -22,13 +22,18 @@
 #include "backend/common/logger.h"
 #include "backend/storage/table_factory.h"
 #include "backend/storage/database.h"
+#include "backend/planner/seq_scan_plan.h"
+#include "backend/executor/executors.h"
+#include "backend/concurrency/transaction_manager_factory.h"
 
 #include "commands/dbcommands.h"
 #include "nodes/pg_list.h"
 #include "parser/parse_utilcmd.h"
 
+
 #include <backend/expression/abstract_expression.h>
 #include <backend/bridge/dml/expr/expr_transformer.h>
+
 
 namespace peloton {
 namespace bridge {
@@ -197,7 +202,7 @@ bool DDLTable::CreateTableCheck(Oid relation_oid, std::string table_name,
 
   //TODO:Here only check constrain be added
 
-  std::vector<char *> check_predicates;
+  std::vector<std::string> check_predicates;
   if(Cstmt != NULL && Cstmt->constraints != NULL){
     List *newConstraints = Cstmt->constraints;
     ListCell   *cell;
@@ -209,7 +214,7 @@ bool DDLTable::CreateTableCheck(Oid relation_oid, std::string table_name,
 
 //      expression::AbstractExpression *predicate =
 //          ExprTransformer::TransformExpr(reinterpret_cast<ExprState *>(cdef));
-      check_predicates.push_back(cdef->cooked_expr);
+      check_predicates.push_back(cdef->str_expr);
     }
 
   }
@@ -241,14 +246,29 @@ bool DDLTable::AlterTable(Oid relation_oid, AlterTableStmt *Astmt) {
   ListCell *lcmd;
   foreach (lcmd, Astmt->cmds) {
     AlterTableCmd *cmd = (AlterTableCmd *)lfirst(lcmd);
-
     switch (cmd->subtype) {
       // case AT_AddColumn:  /* add column */
       // case AT_DropColumn:  /* drop column */
-
-      case AT_AddConstraint: /* ADD CONSTRAINT */
+      
+      case AT_AddIndex:{
+        IndexStmt *Istmt = (IndexStmt *)cmd->def;
+         bool status = AddIndex(Istmt);
+          if (status == false) {
+             LOG_WARN("Failed to add an index");
+          }
+        break;
+      }
+      case AT_DropConstraint:{
+        bool status = DropConstraint( relation_oid, cmd->name);
+        if (status == false) {
+           LOG_WARN("Failed to add constraint");
+        }
+        break;
+      }
+      case AT_AddConstraint: 
       {
-        bool status = AddConstraint(relation_oid, (Constraint *)cmd->def);
+         LOG_INFO("ADD CONSTRAIN");
+        bool status = AddConstraint(relation_oid, (Constraint *)cmd->def, cmd->name);
 
         if (status == false) {
           LOG_WARN("Failed to add constraint");
@@ -258,19 +278,20 @@ bool DDLTable::AlterTable(Oid relation_oid, AlterTableStmt *Astmt) {
       case AT_DropNotNull:
       {
           LOG_INFO("ALTER TABLE === DROP NOT NULL ");
-          bool status = DropNotNull(relation_oid, (Constraint *)cmd->def);
+          bool status = DropNotNull(relation_oid, cmd->name);
           if (status == false) {
              LOG_WARN("Failed to add constraint");
           }
           break;
       }
-      case AT_DropConstraint:
-      {
-        LOG_INFO("ALTER TABLE === DROP CONSTRAINT ");
-        //bool status = DropConstraint(relation_oid, (Constraint *)cmd->def);
-        break;
+       case AT_SetNotNull:{
+          bool status = DDLTable::SetNotNull(relation_oid, cmd->name);
+	  if (status == false) {
+          	LOG_WARN("Failed to add constraint");
+          	return false;
+          }
+          break;
       }
-
       default:
         break;
     }
@@ -290,7 +311,7 @@ bool DDLTable::DropTable(Oid table_oid) {
   oid_t database_oid = Bridge::GetCurrentDatabaseOid();
 
   if (database_oid == InvalidOid || table_oid == InvalidOid) {
-    LOG_WARN("Could not drop table :: db oid : %lu table oid : %u",
+    LOG_WARN("Could not drop table :: db oid : %u table oid : %u",
              database_oid, table_oid);
     return false;
   }
@@ -312,7 +333,7 @@ bool DDLTable::DropTable(Oid table_oid) {
  * @param constraint constraint
  * @return true if we add the constraint, false otherwise
  */
-bool DDLTable::AddConstraint(Oid relation_oid, Constraint *constraint) {
+bool DDLTable::AddConstraint(Oid relation_oid, Constraint *constraint, char* name) {
   ConstraintType contype = PostgresConstraintTypeToPelotonConstraintType(
       (PostgresConstraintType)constraint->contype);
   std::vector<catalog::ForeignKey> foreign_keys;
@@ -372,8 +393,13 @@ bool DDLTable::AddConstraint(Oid relation_oid, Constraint *constraint) {
           CharToForeignKeyActionType(constraint->fk_upd_action),
           CharToForeignKeyActionType(constraint->fk_del_action), conname);
       foreign_keys.push_back(*foreign_key);
+      break;
+    }
+    case CONSTRAINT_TYPE_UNIQUE:{
+      LOG_INFO("ADD CONSTRAIN UNIQUE, NAME = %s",name);
+      break;
 
-    } break;
+    }
     default:
       LOG_WARN("Unrecognized constraint type %d", (int)contype);
       break;
@@ -388,70 +414,162 @@ bool DDLTable::AddConstraint(Oid relation_oid, Constraint *constraint) {
   return true;
 }
 
-bool DDLTable::DropNotNull(Oid relation_oid, __attribute__((unused))Constraint *constraint){
+/**
+ * @brief Drop Not Null Constraint on a table
+ * @param Oid relation_oid
+ * @param Constraint *constraint
+ * @return true if drop not null successfully, false otherwise
+ */
+bool DDLTable::DropNotNull(Oid relation_oid, char *conname){
 
-  LOG_INFO("=== DROP NOT NULL ===");
   oid_t database_oid = Bridge::GetCurrentDatabaseOid();
   assert(database_oid);
   auto &manager = catalog::Manager::GetInstance();
   storage::Database *db = manager.GetDatabaseWithOid(database_oid);
   storage::DataTable* targetTable = db->GetTableWithOid(relation_oid);
   catalog::Schema* targetSchema = targetTable->GetSchema();
-  LOG_INFO("=== TRIGER SCHEMA DROP. ====");
-  //if( constraint->conname ){}]
-  //LOG_INFO("tmp string = %s",constraint->conname);
-  std::string constrain_name;
-
-  if (constraint->conname != NULL) {
-    constrain_name = std::string(constraint->conname);
+  
+  std::string column_name;
+  if (conname != NULL) {
+    column_name = std::string(conname);
   } else {
-    LOG_INFO("NAME == NULL");
-    constrain_name = "";
+    column_name = "";
   }  
-
-  catalog::Constraint tmp_constraint = catalog::Constraint(CONSTRAINT_TYPE_NOTNULL,
-                                                          constrain_name);
-  LOG_INFO("after construct the constraints");
+  catalog::Constraint tmp_constraint = catalog::Constraint(CONSTRAINT_TYPE_NOTNULL,column_name);
   bool status = targetSchema->DropNotNull( tmp_constraint );
   return status;
 
 }
 
+/**
+ * @brief Set Not Null Constraint on a table
+ * @param Oid relation_oid
+ * @param Constraint *constraint
+ * @return true if set not null successfully, false otherwise
+ */
+
+bool DDLTable::SetNotNull(Oid relation_oid, char* conname){
+   
+    oid_t database_oid = Bridge::GetCurrentDatabaseOid();
+    assert(database_oid);
+    auto &manager = catalog::Manager::GetInstance();
+    storage::Database *db = manager.GetDatabaseWithOid(database_oid);
+    storage::DataTable* targetTable = db->GetTableWithOid(relation_oid);
+
+    std::string constrain_name;
+    if (conname != NULL) {
+      constrain_name = std::string(conname);
+    } else {
+      constrain_name = "";
+    }
+
+    catalog::Schema* targetSchema = targetTable->GetSchema();
+    catalog::Constraint tmp_constraint = catalog::Constraint(CONSTRAINT_TYPE_NOTNULL,
+                                                           constrain_name);
+    if( targetSchema->ExistConstrain(tmp_constraint) )
+       return true;
+    bool ExistNull = DDLTable::CheckNullExist(targetTable, constrain_name);
+    if( ExistNull ){
+       throw ConstraintException("NULL ALREADY EXISTED IN COLUMN "+constrain_name);
+       return false;
+    }
+    bool status = targetSchema->SetNotNull( tmp_constraint );
+    return status;
+}
 
 /**
- * @brief Drop existing constraint to the table
- * @param relation_oid relation oid
- * @param constraint constraint
- * @return true if successfully drop the constraint, false otherwise
- */
-/*
-bool DDLTable::DropConstraint(Oid relation_oid, Constraint *constraint) {
+* @brief Check if column contains NULL
+* @param storage::DataTable* targetTable
+* @param std::string column_name
+* @return true if there is at least one NULL value, false otherwise
+*/
+bool DDLTable::CheckNullExist( storage::DataTable* targetTable, std::string column_name ){
 
-  ConstraintType contype = PostgresConstraintTypeToPelotonConstraintType(
-          (PostgresConstraintType)constraint->contype);
+    LOG_INFO("=== CHECK NULL EXIST FOR %s ===", column_name.c_str() );
 
-  std::string conname;
-
-  if (constraint->conname != NULL) {
-    conname = constraint->conname;
-  } else {
-    conname = "";
+  // prepare for seq scan
+  catalog::Schema* targetSchema = targetTable->GetSchema();
+  std::vector<oid_t> column_ids;
+  oid_t column_count = targetSchema->GetColumnCount();
+  for (oid_t column_itr = 0; column_itr < column_count; column_itr++){
+    std:: string current_name = targetSchema->GetColumn(column_itr).column_name;
+    if( current_name.compare(column_name)==0 ){
+      column_ids.push_back(column_itr);
+      break;
+    }
   }
 
-  switch (contype) {
-    case CONSTRAINT_TYPE_UNIQUE: {
-      break;
+  planner::SeqScanPlan seq_scan_node(targetTable, nullptr, column_ids);
+  auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
+  auto txn = txn_manager.BeginTransaction();
+  std::unique_ptr<executor::ExecutorContext> context(
+          new executor::ExecutorContext(txn));
+
+  executor::SeqScanExecutor executor(&seq_scan_node, context.get());
+  if(executor.Init() == false){
+    LOG_WARN("ERROR INIT EXECUTOR");
+  }
+
+  std::vector<std::unique_ptr<executor::LogicalTile>> result_tiles;
+  while ( executor.Execute() ) {
+    result_tiles.emplace_back( executor.GetOutput());
+  }
+
+  auto result_iter = result_tiles.begin();
+  for( ; result_iter != result_tiles.end(); result_iter++){
+    size_t tuple_count = (*result_iter)->GetTupleCount();
+    for(size_t tuple_iter = 0; tuple_iter < tuple_count; tuple_iter++ ){
+      if((*result_iter)->GetValue(tuple_iter, 0).IsNull()){
+        return true;
+      }
     }
-    case CONSTRAINT_TYPE_FOREIGN: {
-      break;
-    }
-    default:
-      break;
   }
   return false;
 }
-*/
 
+/**
+ * @brief Add an index
+ * @param Oid relation_oid
+ * @param IndexStmt *Istmt, index statement
+ * @return true if we successfull add this index, false otherwise
+ */
+bool DDLTable::AddIndex( IndexStmt *Istmt) {
+
+  IndexInfo * idx = DDLIndex::ConstructIndexInfoByParsingIndexStmt(Istmt);
+  LOG_INFO("add index id = %u", idx->GetOid());
+  IndexInfo my_index_info(idx->GetIndexName(), idx->GetOid(),idx->GetTableName(),
+                            idx->GetMethodType(),  INDEX_CONSTRAINT_TYPE_UNIQUE,
+                                    Istmt->unique, idx->GetKeyColumnNames());
+  bool status = DDLIndex::CreateIndex(my_index_info);
+  LOG_INFO("add index success = %d", status);
+  return status;
+}
+
+/**
+ * @brief Drop a constraint 
+ * @param Oid relation_oid
+ * @param Oid relation_oid,  char* conname
+ * @return true if we successfull drop this constraint, false otherwise
+ */
+
+bool DDLTable::DropConstraint(Oid relation_oid,  char* conname ){
+   
+  // TODO: only unique implemented
+  oid_t database_oid = Bridge::GetCurrentDatabaseOid();
+  assert(database_oid);
+  auto &manager = catalog::Manager::GetInstance();
+  storage::Database *db = manager.GetDatabaseWithOid(database_oid);
+  storage::DataTable* targetTable = db->GetTableWithOid(relation_oid);
+  catalog::Schema* targetSchema = targetTable->GetSchema();
+
+  oid_t offset = targetSchema->DropConstraint( conname );
+  LOG_INFO("unique index offset = %u", offset);
+  if( offset >= targetTable->GetIndexCount() )
+    return false;
+  targetTable->DropIndexWithOid(offset);
+  return true;
+
+}
 
 /**
  * @brief Set Reference Tables
@@ -478,3 +596,4 @@ bool DDLTable::SetReferenceTables(
 
 }  // namespace bridge
 }  // namespace peloton
+
