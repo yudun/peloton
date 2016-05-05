@@ -73,9 +73,14 @@ class Schema : public Printable {
       const std::vector<Schema *> &schema_list,
       const std::vector<std::vector<oid_t>> &subsets);
 
-  // Drop Not Null constrains
+  // Drop Not Null constraints
   bool DropNotNull(Constraint constraint);
+  // Set Not Null constraints
+  bool SetNotNull(Constraint constraint);
+  bool ExistConstrain(Constraint constraint);
 
+  // Drop constraints
+  oid_t DropConstraint(char const* conname);
 
   // Compare two schemas
   bool operator==(const Schema &other) const;
@@ -129,6 +134,14 @@ class Schema : public Printable {
   }
 
   inline std::vector<Column> GetColumns() const { return columns; }
+
+  inline oid_t GetColumnOffsetByName(char * col_name) const {
+    for (unsigned i = 0; i < columns.size(); i++) {
+      if(columns[i].column_name.compare(col_name) == 0)
+        return i;
+    }
+    return INVALID_OID;
+  }
 
   // Return the number of columns in the schema for the tuple.
   inline oid_t GetColumnCount() const { return column_count; }

@@ -51,9 +51,6 @@ bool HashJoinExecutor::DInit() {
 bool HashJoinExecutor::DExecute() {
   LOG_INFO("********** Hash Join executor :: 2 children \n");
 
-
-
-  
   // Loop until we have non-empty result tile or exit
   for (;;) {
     // Check if we have any buffered output tiles

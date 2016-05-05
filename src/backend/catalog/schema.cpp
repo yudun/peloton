@@ -15,6 +15,8 @@
 #include <sstream>
 
 #include "backend/catalog/schema.h"
+#include "backend/common/logger.h"
+
 
 namespace peloton {
 namespace catalog {
@@ -257,19 +259,67 @@ bool Schema::DropNotNull(Constraint constraint)  {
 
   oid_t total_column = GetColumnCount();
   for (oid_t column_itr = 0; column_itr < total_column; column_itr++) {
-    std::vector<catalog::Constraint> cons = GetColumn(column_itr).constraints;
-    for(oid_t conid=0; conid<cons.size(); conid++) {
-
-      if( cons[conid].GetType() == constraint.GetType() && cons[conid].GetName() == constraint.GetName()) {
-        cons.erase( cons.begin() + conid );
-        return true;
-      }
+    std::vector<catalog::Constraint>& cons = columns[column_itr].constraints;
+    std::vector<catalog::Constraint>::iterator itr = cons.begin();
+    if( GetColumn(column_itr).column_name.compare(constraint.GetName())== 0 ){
+    	for(; itr!=cons.end(); itr++) {
+      		if( itr->GetType() == constraint.GetType() ) {
+        		cons.erase( itr );
+        		return true;
+      		}
+    	}
     }
   }
   return false;
 
+
 }
 
+bool Schema::SetNotNull(Constraint constraint){
+  LOG_INFO("Schema::SetNotNull");
+  oid_t total_column = GetColumnCount();
+
+  for (oid_t column_itr = 0; column_itr < total_column; column_itr++) {
+
+    if(GetColumn(column_itr).column_name.compare(constraint.GetName())==0){
+      columns[column_itr].constraints.push_back(constraint);
+      return true;
+    }
+  }
+  return false;
+}
+
+bool Schema::ExistConstrain(Constraint constraint){
+
+  oid_t total_column = GetColumnCount();
+
+  for (oid_t column_itr = 0; column_itr < total_column; column_itr++) {
+    if(GetColumn(column_itr).column_name.compare(constraint.GetName())==0){
+      for(oid_t con_iter = 0; con_iter < columns[column_itr].constraints.size(); con_iter++){
+         if(columns[column_itr].constraints[con_iter].GetType() == constraint.GetType())
+           return true;
+      }
+    }
+  }
+  return false;
+}
+
+oid_t Schema::DropConstraint(char const* conname){
+  LOG_INFO("===DropConstraint===");
+  oid_t total_column = GetColumnCount();
+  for (oid_t column_itr = 0; column_itr < total_column; column_itr++) {
+    std::vector<catalog::Constraint>& cons = columns[column_itr].constraints;
+    std::vector<catalog::Constraint>::iterator itr = cons.begin();
+      for(; itr!=cons.end(); itr++) {
+        if( (itr->GetName()).compare(std::string(conname)) == 0 ) {
+          oid_t offset = itr->GetUniqueIndexOffset();
+          cons.erase( itr );
+          return offset;
+        }
+      }
+  }
+  return INVALID_OID;
+}
 
 
 }  // End catalog namespace

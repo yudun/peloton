@@ -15,12 +15,15 @@
 #include <memory>
 #include <queue>
 
+#include <map>
+#include <mutex>
+
 #include "backend/brain/sample.h"
 #include "backend/bridge/ddl/bridge.h"
 #include "backend/catalog/foreign_key.h"
 #include "backend/storage/abstract_table.h"
-#include "backend/concurrency/transaction.h"
 #include "backend/common/platform.h"
+#include <backend/expression/abstract_expression.h>
 
 //===--------------------------------------------------------------------===//
 // GUC Variables
@@ -54,15 +57,15 @@ namespace peloton {
 
 typedef std::map<oid_t, std::pair<oid_t, oid_t>> column_map_type;
 
-namespace index {
-class Index;
+namespace index { class Index; }
+
+namespace catalog {
+class ForeignKey;
 }
 
 namespace storage {
-
 class Tuple;
 class TileGroup;
-
 
 //===--------------------------------------------------------------------===//
 // DataTable
@@ -152,6 +155,8 @@ class DataTable : public AbstractTable {
 
   void AddForeignKey(catalog::ForeignKey *key);
 
+  void AddCheckPredicate(std::vector<char *> check_predicates);
+
   void AddReferringForeignKey(catalog::ForeignKey *const key);
 
   catalog::ForeignKey *GetRefferedForeignKey(const oid_t &key_offset) const;
@@ -220,13 +225,16 @@ class DataTable : public AbstractTable {
   // INTEGRITY CHECKS
   //===--------------------------------------------------------------------===//
 
+  bool CheckConstraints(const storage::Tuple *tuple) const;
+
   bool CheckNulls(const storage::Tuple *tuple) const;
 
-  bool CheckConstraints(const storage::Tuple *tuple) const;
+  // check the check constraints
+  bool CheckCheckConstraints(const storage::Tuple *tuple) const;
 
   // Claim a tuple slot in a tile group
   ItemPointer GetEmptyTupleSlot(const storage::Tuple *tuple,
-                           bool check_constraint = true);
+                                bool check_constraint = true);
 
   // add a default unpartitioned tile group to table
   oid_t AddDefaultTileGroup();
@@ -241,10 +249,12 @@ class DataTable : public AbstractTable {
   // try to insert into the indices
   bool InsertInIndexes(const storage::Tuple *tuple, ItemPointer location);
 
-  bool InsertInSecondaryIndexes(const storage::Tuple *tuple, ItemPointer location);
+  bool InsertInSecondaryIndexes(const storage::Tuple *tuple,
+                                ItemPointer location);
 
   // check the foreign key constraints
   bool CheckForeignKeyConstraints(const storage::Tuple *tuple);
+
  private:
   //===--------------------------------------------------------------------===//
   // MEMBERS
@@ -256,20 +266,22 @@ class DataTable : public AbstractTable {
 
   // TILE GROUPS
   // set of tile groups
-  std::vector<oid_t> tile_groups_;
-  std::atomic<size_t> tile_group_count_ = ATOMIC_VAR_INIT(0);
-  // current tile group
-  //size_t tile_group_offset_ = 0;
+  RWLock tile_group_lock_;
 
+  std::vector<oid_t> tile_groups_;
+
+  std::atomic<size_t> tile_group_count_ = ATOMIC_VAR_INIT(0);
+  
   // tile group mutex
+  // TODO: don't know why need this mutex --Yingjun
   std::mutex tile_group_mutex_;
-  Spinlock tile_group_lock_;
 
   // INDEXES
   std::vector<index::Index *> indexes_;
 
   // CONSTRAINTS
   std::vector<catalog::ForeignKey *> foreign_keys_;
+  std::vector<char *> check_predicates_;
   // RECORD WHICH FOREIGN KEYS REFERS THIS TABLE
   std::vector<catalog::ForeignKey *> refered_foreign_keys_;
 

@@ -352,6 +352,13 @@ BackendType GetBackendType(const LoggingType& logging_type) {
   return backend_type;
 }
 
+void AtomicUpdateItemPointer(ItemPointer *src_ptr, const ItemPointer &value) {
+  assert(sizeof(ItemPointer) == sizeof(int64_t));
+  int64_t* cast_src_ptr = reinterpret_cast<int64_t*>((void*)src_ptr);
+  int64_t* cast_value_ptr = reinterpret_cast<int64_t*>((void*)&value);
+  __sync_bool_compare_and_swap(cast_src_ptr, *cast_src_ptr, *cast_value_ptr);
+}
+
 //===--------------------------------------------------------------------===//
 // Expression - String Utilities
 //===--------------------------------------------------------------------===//
@@ -1154,7 +1161,7 @@ ValueType PostgresValueTypeToPelotonValueType(
 ConstraintType PostgresConstraintTypeToPelotonConstraintType(
     PostgresConstraintType PostgresConstrType) {
   ConstraintType constraintType = CONSTRAINT_TYPE_INVALID;
-
+  LOG_INFO("IN PostgresConstraintTypeToPelotonConstraintType");
   switch (PostgresConstrType) {
     case POSTGRES_CONSTRAINT_NULL:
       constraintType = CONSTRAINT_TYPE_NULL;
@@ -1162,6 +1169,7 @@ ConstraintType PostgresConstraintTypeToPelotonConstraintType(
 
     case POSTGRES_CONSTRAINT_NOTNULL:
       constraintType = CONSTRAINT_TYPE_NOTNULL;
+      LOG_INFO("NOT NULL");
       break;
 
     case POSTGRES_CONSTRAINT_DEFAULT:

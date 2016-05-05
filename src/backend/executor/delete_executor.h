@@ -13,6 +13,7 @@
 #pragma once
 
 #include "backend/executor/abstract_executor.h"
+#include "backend/expression/container_tuple.h"
 
 #include <vector>
 
@@ -43,6 +44,9 @@ class DeleteExecutor : public AbstractExecutor {
 
  private:
   storage::DataTable *target_table_ = nullptr;
+
+  bool CheckDeleteForeignKeyConstraints(LogicalTile * source_tile);
+
 };
 
 }  // namespace executor

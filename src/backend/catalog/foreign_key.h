@@ -17,8 +17,24 @@
 #include <iostream>
 
 #include "backend/common/types.h"
+#include "backend/expression/comparison_expression.h"
 
 namespace peloton {
+
+namespace storage{
+class DataTable;
+class Tuple;
+}
+
+namespace index{
+class Index;
+}
+
+namespace executor {
+class ExecutorContext;
+}
+
+
 namespace catalog {
 
 //===--------------------------------------------------------------------===//
@@ -65,6 +81,37 @@ class ForeignKey {
 
   std::string &GetConstraintName() { return fk_name; }
 
+
+ public:
+  bool IsTupleInSinkTable(storage::DataTable* sink_table, const storage::Tuple* tuple);
+
+  bool CheckDeleteConstraints(executor::ExecutorContext *executor_context,
+                              std::vector<storage::Tuple>& tuples);
+
+  bool CheckUpdateConstraints(executor::ExecutorContext *executor_context,
+                              storage::Tuple *old_tuple,
+                              storage::Tuple *new_tuple);
+
+ private:
+  expression::ComparisonExpression<expression::CmpEq> *MakePredicate(
+      storage::Tuple* cur_tuple);
+
+  bool IsTupleReferencedBySourceTable(storage::DataTable* source_table,
+                                             index::Index* fk_index,
+                                             storage::Tuple* cur_tuple);
+
+  bool DeleteReferencingTupleOnCascading(executor::ExecutorContext *executor_context,
+                                         storage::DataTable* source_table,
+                                         storage::Tuple* cur_tuple);
+
+  bool HaveTheSameForeignKey(storage::Tuple *old_tuple, storage::Tuple *new_tuple);
+
+
+  bool UpdateReferencingTupleOnCascading(executor::ExecutorContext *executor_context,
+                                         storage::DataTable *source_table,
+                                         storage::Tuple* old_tuple,
+                                         std::vector<oid_t> &direct_map_column_offsets,
+                                         storage::Tuple* new_tuple);
  private:
   oid_t src_table_id = INVALID_OID;
   oid_t sink_table_id = INVALID_OID;
@@ -81,7 +128,6 @@ class ForeignKey {
   std::vector<oid_t> fk_column_offsets;
 
   // What to do when foreign key is updated or deleted ?
-  // FIXME: Not used in our executors currently
   ForeignKeyActionType fk_update_action;
   ForeignKeyActionType fk_delete_action;
 
