@@ -487,7 +487,7 @@ bool DDLTable::SetNotNull(Oid relation_oid, char* conname){
        return true;
     bool ExistNull = DDLTable::CheckNullExist(targetTable, constrain_name);
     if( ExistNull ){
-       throw ConstraintException("NULL ALREADY EXISTED IN COLUMN "+constrain_name);
+       LOG_ERROR("NULL ALREADY EXISTED IN COLUMN %s", constrain_name.c_str());
        return false;
     }
     bool status = targetSchema->SetNotNull( tmp_constraint );
@@ -592,7 +592,7 @@ bool DDLTable::AddIndex( Oid relation_oid, IndexStmt *Istmt) {
   auto &hash_table = hash_executor.GetHashTable();
   for(auto hash_table_iterator : hash_table ){
     if(hash_table_iterator.second.size() > 1){
-    throw ConstraintException("EXISTS DUPLICATED VALUES, FAIL TO ADD UNIQUE CONSTRAINT "+idx->GetIndexName());  
+    LOG_ERROR("EXISTS DUPLICATED VALUES, FAIL TO ADD UNIQUE CONSTRAINT %s",idx->GetIndexName().c_str());
     return false;
     }
   }
