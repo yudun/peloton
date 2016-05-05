@@ -27,6 +27,7 @@
  *
  *-------------------------------------------------------------------------
  */
+
 #include "postgres.h"
 
 #include "access/htup_details.h"
@@ -74,6 +75,9 @@
 #include "utils/snapmgr.h"
 #include "utils/syscache.h"
 #include "utils/tqual.h"
+
+#include <postgres/include/nodes/pg_list.h>
+#include "backend/common/logger.h"
 
 
 /* Potentially set by pg_upgrade_support functions */
@@ -2350,6 +2354,16 @@ AddRelationNewConstraints(Relation rel,
 		constrOid =
 			StoreRelCheck(rel, ccname, expr, !cdef->skip_validation, is_local,
 						  is_local ? 0 : 1, cdef->is_no_inherit, is_internal);
+
+		//store plat cooked_expr to the state, used by peloton
+		char * temp = nodeToString(expr);
+
+		printf("In postgres heap: store cooked check constrains: expr:%s\n",
+							temp);
+
+		char* str_expr = new char[strlen(temp)+1];
+		strcpy(str_expr, temp);
+		cdef->cooked_expr = str_expr;
 
 		numchecks++;
 

@@ -119,6 +119,21 @@ bool OptimisticTxnManager::AcquireOwnership(
   return true;
 }
 
+// release the write lock on a tuple.
+// called when constraints check failure during update
+bool OptimisticTxnManager::YieldOwnership(
+    const storage::TileGroupHeader *const tile_group_header,
+    const oid_t &tile_group_id __attribute__((unused)), const oid_t &tuple_id) {
+  auto txn_id = current_txn->GetTransactionId();
+
+  if (tile_group_header->SetAtomicTransactionId(tuple_id, txn_id, INITIAL_TXN_ID) == false) {
+    LOG_ERROR("Fail to yield ownership. Set txn failure.");
+    SetTransactionResult(Result::RESULT_FAILURE);
+    return false;
+  }
+  return true;
+}
+
 bool OptimisticTxnManager::PerformRead(const ItemPointer &location) {
   current_txn->RecordRead(location);
   return true;

@@ -69,6 +69,13 @@ class TransactionManager {
       const storage::TileGroupHeader *const tile_group_header,
       const oid_t &tile_group_id, const oid_t &tuple_id) = 0;
 
+  virtual bool YieldOwnership(
+      const storage::TileGroupHeader *const tile_group_header __attribute__((unused)),
+      const oid_t &tile_group_id __attribute__((unused)),
+      const oid_t &tuple_id __attribute__((unused))) {
+    return false;
+  };
+
   virtual bool PerformInsert(const ItemPointer &location) = 0;
 
   virtual bool PerformRead(const ItemPointer &location) = 0;
@@ -93,6 +100,10 @@ class TransactionManager {
 
   void SetTransactionResult(const Result result) {
     current_txn->SetResult(result);
+  }
+
+  Result GeTransactionResult() {
+    return current_txn->GetResult();
   }
 
   //for use by recovery

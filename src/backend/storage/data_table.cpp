@@ -28,6 +28,12 @@
 #include "backend/storage/tile_group_factory.h"
 #include "backend/concurrency/transaction_manager_factory.h"
 
+#include "backend/bridge/dml/expr/expr_transformer.h"
+
+#include <postgres/include/optimizer/clauses.h>
+#include <postgres/include/optimizer/planner.h>
+#include <postgres/include/executor/executor.h>
+
 //===--------------------------------------------------------------------===//
 // Configuration Variables
 //===--------------------------------------------------------------------===//
@@ -83,6 +89,12 @@ DataTable::~DataTable() {
     delete foreign_key;
   }
 
+  // clean up check expressions
+  for (auto expr : check_predicates_) {
+    delete expr;
+  }
+
+
   // AbstractTable cleans up the schema
 }
 
@@ -114,9 +126,37 @@ bool DataTable::CheckConstraints(const storage::Tuple *tuple) const {
                               std::string(tuple->GetInfo()));
     return false;
   }
+
+  if (CheckCheckConstraints(tuple) == false) {
+    throw ConstraintException("Check constraint violated : " +
+                              std::string(tuple->GetInfo()));
+    return false;
+  }
   return true;
 }
 
+
+bool DataTable::CheckCheckConstraints(const storage::Tuple *tuple) const{
+  Expr *qual;
+
+  for(auto iter : check_predicates_ ){
+    char * expr = iter;
+    ExprState *expr_state;
+    qual = (Expr *) make_ands_implicit(static_cast<Expr *>(stringToNode(expr)));
+    qual = expression_planner(qual);
+    expr_state = ExecInitExpr(qual, NULL);
+    expression::AbstractExpression *check_predicate
+        = bridge::ExprTransformer::TransformExpr(expr_state);
+
+    if(check_predicate->Evaluate((static_cast<const AbstractTuple *>(tuple)), nullptr, NULL).IsFalse()){
+      return false;
+    }
+
+  }
+
+  return true;
+
+}
 // this function is called when update/delete/insert is performed.
 // this function first checks whether there's available slot.
 // if yes, then directly return the available slot.
@@ -125,6 +165,7 @@ bool DataTable::CheckConstraints(const storage::Tuple *tuple) const {
 // new tile group.
 // we just wait until a new tuple slot in the newly allocated tile group is
 // available.
+
 ItemPointer DataTable::GetEmptyTupleSlot(const storage::Tuple *tuple,
                                          bool check_constraint) {
   assert(tuple);
@@ -197,6 +238,7 @@ ItemPointer DataTable::InsertVersion(const storage::Tuple *tuple) {
     LOG_WARN("Failed to get tuple slot.");
     return INVALID_ITEMPOINTER;
   }
+
 
   // Index checks and updates
   if (InsertInSecondaryIndexes(tuple, location) == false) {
@@ -284,7 +326,6 @@ bool DataTable::InsertInIndexes(const storage::Tuple *tuple,
         if (index->CondInsertEntry(key.get(), location, fn) == false) {
           return false;
         }
-
       } break;
 
       case INDEX_CONSTRAINT_TYPE_DEFAULT:
@@ -292,7 +333,7 @@ bool DataTable::InsertInIndexes(const storage::Tuple *tuple,
         index->InsertEntry(key.get(), location);
         break;
     }
-    LOG_TRACE("Index constraint check on %s passed.", index->GetName().c_str());
+    LOG_INFO("Index constraint check on %s passed.", index->GetName().c_str());
   }
 
   return true;
@@ -345,7 +386,10 @@ bool DataTable::InsertInSecondaryIndexes(const storage::Tuple *tuple,
  * @returns True on success, false if any foreign key constraints fail
  */
 bool DataTable::CheckForeignKeyConstraints(const storage::Tuple *tuple) {
+  LOG_INFO("foreign_keys num = %lu", foreign_keys_.size());
+  LOG_INFO("src_table_oid = %u", GetOid());
   for (auto foreign_key : foreign_keys_) {
+    LOG_INFO("fk = %s", foreign_key->GetFKColumnNames()[0].c_str());
     LOG_INFO("This foreignKey is from table %u:index %u to table %u:index %u",
              foreign_key->GetSrcTableOid(),
              foreign_key->GetSrcIndexOid(),
@@ -664,7 +708,9 @@ void DataTable::DropIndexWithOid(const oid_t &index_id) {
     assert(index_offset < indexes_.size());
 
     // Drop the index
+    auto toDelete = indexes_[index_offset];
     indexes_.erase(indexes_.begin() + index_offset);
+    delete toDelete;
   }
 }
 
@@ -702,6 +748,14 @@ oid_t DataTable::GetIndexCount() const { return indexes_.size(); }
 // FOREIGN KEYS
 //===--------------------------------------------------------------------===//
 
+void DataTable:: AddCheckPredicate(std::vector<char *> new_predicates){
+
+  for(auto str:new_predicates){
+    check_predicates_.push_back(str);
+    LOG_INFO("add check constrains: %s\n", str);
+  }
+}
+
 void DataTable::AddForeignKey(catalog::ForeignKey *key) {
   {
     std::lock_guard<std::mutex> lock(tile_group_mutex_);
@@ -722,6 +776,7 @@ void DataTable::AddForeignKey(catalog::ForeignKey *key) {
     auto &manager = catalog::Manager::GetInstance();
     auto sink_table = manager.GetTableWithOid(database_oid, key->GetSinkTableOid());
     sink_table->AddReferringForeignKey(key);
+    LOG_INFO("src_table = %u, sink_table = %u", GetOid(), sink_table->GetOid());
   }
 }
 
@@ -815,7 +870,7 @@ void SetTransformedTileGroup(storage::TileGroup *orig_tile_group,
     auto orig_tile = orig_tile_group->GetTile(orig_tile_offset);
     auto new_tile = new_tile_group->GetTile(new_tile_offset);
 
-    // Copy the column over to the new tile group
+    // Copy the column to the new tile group
     for (oid_t tuple_itr = 0; tuple_itr < tuple_count; tuple_itr++) {
       auto val = orig_tile->GetValue(tuple_itr, orig_tile_column_offset);
       new_tile->SetValue(val, tuple_itr, new_tile_column_offset);
