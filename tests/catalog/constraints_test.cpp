@@ -38,7 +38,7 @@
 #define FOREIGHN_KEY_CASCADE_UPDATE_TEST
 #define FOREIGHN_KEY_SETNULL_UPDATE_TEST
 #define DROPSETNOTNULL_TEST
-//#define DROPUNIQUE_TEST
+#define DROPUNIQUE_TEST
 #define SETUNIQUE_TEST
 
 namespace peloton {
@@ -893,7 +893,6 @@ TEST_F(ConstraintsTests, DropUniqueTest){
             TransactionTestsUtil::CreateTable(2, "test_table", 0, 1000, 1000, false, false);
     auto &manager = catalog::Manager::GetInstance();
     oid_t current_db_oid = bridge::Bridge::GetCurrentDatabaseOid();
-    //std::unique<storage::Database> newdb(new storage::Database(current_db_oid));
     storage::Database* newdb = new storage::Database(current_db_oid);
     manager.AddDatabase( newdb );
 
@@ -905,20 +904,22 @@ TEST_F(ConstraintsTests, DropUniqueTest){
                                     INDEX_TYPE_BTREE,  INDEX_CONSTRAINT_TYPE_UNIQUE,
                                     true, column_name);
     peloton::bridge::DDLIndex::CreateIndex(my_index_info);
-    auto &txn_manager1 = concurrency::TransactionManagerFactory::GetInstance();
 
     char const* name = "value_unique";
-    data_table->GetSchema()->DropConstraint(name);
+    oid_t offset = data_table->GetSchema()->DropConstraint(name);
+    data_table->DropIndexWithOid(offset);
+    auto &txn_manager1 = concurrency::TransactionManagerFactory::GetInstance();
     // Test1: insert a tuple with duplicated column 2
     // should success
     TransactionScheduler scheduler(2, data_table, &txn_manager1);
     scheduler.Txn(0).Insert(2, 1);
-    scheduler.Txn(1).Insert(3, 1);
     scheduler.Txn(0).Commit();
+    scheduler.Txn(1).Insert(3, 1);
     scheduler.Txn(1).Commit();
     scheduler.Run();
     EXPECT_TRUE(RESULT_SUCCESS == scheduler.schedules[0].txn_result);
     EXPECT_TRUE(RESULT_SUCCESS == scheduler.schedules[1].txn_result);
+    
     delete newdb;   
 
 }
