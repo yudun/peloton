@@ -24,3 +24,8 @@ select * from t3;
 alter table t3 drop constraint my;
 insert into t3 values (4,3);
 select * from t3;
+
+create table t4 (id integer, name integer);
+insert into t4 values (1,2);
+insert into t4 values (2,2);
+alter table t4 add constraint my unique(name);
