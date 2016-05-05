@@ -708,7 +708,9 @@ void DataTable::DropIndexWithOid(const oid_t &index_id) {
     assert(index_offset < indexes_.size());
 
     // Drop the index
+    auto toDelete = indexes_[index_offset];
     indexes_.erase(indexes_.begin() + index_offset);
+    delete toDelete;
   }
 }
 
