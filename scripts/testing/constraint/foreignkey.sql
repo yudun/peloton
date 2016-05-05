@@ -50,12 +50,6 @@ SELECT * FROM c;
 SELECT * FROM d;
 --- expected:   a: 030,111  b:03  c: 00,11  d:00,11
 
-UPDATE a SET va2 = 4 WHERE id = 1;
-SELECT * FROM a;
-SELECT * FROM b;
-SELECT * FROM c;
-SELECT * FROM d;
---- expected:   a: 030,114  b:03  c: 00,14  d:00,1 null
 
 UPDATE a SET va2 = 4 WHERE id = 1;
 SELECT * FROM a;
@@ -63,6 +57,7 @@ SELECT * FROM b;
 SELECT * FROM c;
 SELECT * FROM d;
 --- expected:   a: 030,114  b:03  c: 00,14  d:00,1 null
+
 
 DELETE FROM a WHERE id = 0;
 SELECT * FROM a;
