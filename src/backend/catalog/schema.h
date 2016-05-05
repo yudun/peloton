@@ -80,7 +80,7 @@ class Schema : public Printable {
   bool ExistConstrain(Constraint constraint);
 
   // Drop constraints
-  oid_t DropConstraint(char * conname);
+  oid_t DropConstraint(char const* conname);
 
   // Compare two schemas
   bool operator==(const Schema &other) const;

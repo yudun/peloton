@@ -304,7 +304,8 @@ bool Schema::ExistConstrain(Constraint constraint){
   return false;
 }
 
-oid_t Schema::DropConstraint(char * conname){
+oid_t Schema::DropConstraint(char const* conname){
+  LOG_INFO("===DropConstraint===");
   oid_t total_column = GetColumnCount();
   for (oid_t column_itr = 0; column_itr < total_column; column_itr++) {
     std::vector<catalog::Constraint>& cons = columns[column_itr].constraints;

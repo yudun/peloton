@@ -23,6 +23,7 @@
 #include "backend/storage/table_factory.h"
 #include "backend/index/index_factory.h"
 #include "backend/bridge/ddl/bridge.h"
+#include "backend/bridge/ddl/ddl_index.h"
 
 #include "catalog/constraints_tests_util.h"
 #include "concurrency/transaction_tests_util.h"
@@ -36,6 +37,9 @@
 #define FOREIGHN_KEY_RESTRICT_UPDATE_TEST
 #define FOREIGHN_KEY_CASCADE_UPDATE_TEST
 #define FOREIGHN_KEY_SETNULL_UPDATE_TEST
+#define DROPSETNOTNULL_TEST
+#define DROPUNIQUE_TEST
+#define SETUNIQUE_TEST
 
 namespace peloton {
 namespace test {
@@ -760,5 +764,165 @@ TEST_F(ConstraintsTests, ForeignKeyTest) {
 }
 
 
+#ifdef DROPSETNOTNULL_TEST
+        TEST_F(ConstraintsTests, DROPSETNOTNULLTest) {
+
+            std::unique_ptr<storage::DataTable> data_table(
+                    ConstraintsTestsUtil::CreateAndPopulateTable());
+
+            auto &txn_manager1 = concurrency::TransactionManagerFactory::GetInstance();
+
+            // begin this transaction
+            auto txn1 = txn_manager1.BeginTransaction();
+
+            // Test1: insert a tuple with column 1 = null
+            // should fail
+            bool hasException = false;
+            try {
+                ConstraintsTestsUtil::ExecuteInsert(
+                        txn1, data_table.get(),
+                        ValueFactory::GetIntegerValue(
+                                ConstraintsTestsUtil::PopulatedValue(15, 0)),
+                        ValueFactory::GetNullValue(),
+                        ValueFactory::GetIntegerValue(
+                                ConstraintsTestsUtil::PopulatedValue(15, 2)),
+                        ValueFactory::GetStringValue(
+                                std::to_string(ConstraintsTestsUtil::PopulatedValue(15, 3))));
+
+            } catch (ConstraintException e) {
+                hasException = true;
+            }
+            EXPECT_TRUE(hasException);
+            txn_manager1.CommitTransaction();
+
+            // DROP column2 NOT NULL
+            data_table->GetSchema()->DropNotNull(
+                    catalog::Constraint(CONSTRAINT_TYPE_NOTNULL,"COL_B"));
+
+            // Test2: insert a tuple with column 2 = null
+            // should success
+            auto& txn_manager2 = concurrency::TransactionManagerFactory::GetInstance();
+            auto txn2 = txn_manager2.BeginTransaction();
+            hasException = false;
+            try {
+                ConstraintsTestsUtil::ExecuteInsert(
+                        txn2, data_table.get(),
+                        ValueFactory::GetIntegerValue(
+                                ConstraintsTestsUtil::PopulatedValue(15, 0)),
+                        ValueFactory::GetNullValue(),
+                        ValueFactory::GetIntegerValue(
+                                ConstraintsTestsUtil::PopulatedValue(15, 2)),
+                        ValueFactory::GetStringValue(
+                                std::to_string(ConstraintsTestsUtil::PopulatedValue(15, 3))));
+
+            } catch (ConstraintException e) {
+                hasException = true;
+            }
+            EXPECT_TRUE(!hasException);
+            txn_manager2.CommitTransaction();
+
+            // Set not null on column2
+            data_table->GetSchema()->SetNotNull(
+                    catalog::Constraint(CONSTRAINT_TYPE_NOTNULL,"COL_B"));
+
+            // Test 3 insert a tuple with column 2 = null
+            // should succeed
+            auto& txn_manager3 = concurrency::TransactionManagerFactory::GetInstance();
+            auto txn3 = txn_manager3.BeginTransaction();
+
+            hasException = false;
+            try {
+                ConstraintsTestsUtil::ExecuteInsert(
+                        txn3, data_table.get(),
+                        ValueFactory::GetIntegerValue(
+                                ConstraintsTestsUtil::PopulatedValue(16, 0)),
+                        ValueFactory::GetNullValue(),
+                        ValueFactory::GetIntegerValue(
+                                ConstraintsTestsUtil::PopulatedValue(16, 2)),
+                        ValueFactory::GetStringValue(
+                                std::to_string(ConstraintsTestsUtil::PopulatedValue(16, 3))));
+
+            } catch (ConstraintException e) {
+                hasException = true;
+            }
+            EXPECT_TRUE(hasException);
+            // commit this transactio
+            txn_manager3.CommitTransaction();
+        }
+#endif
+
+#ifdef SETUNIQUE_TEST
+TEST_F(ConstraintsTests, SetUniqueTest) {
+    
+    storage::DataTable * data_table =
+        TransactionTestsUtil::CreateTable(2, "test_table", 0, 1000, 1000, false, false);
+    auto &manager = catalog::Manager::GetInstance();
+    oid_t current_db_oid = bridge::Bridge::GetCurrentDatabaseOid();
+    storage::Database* newdb = new storage::Database(current_db_oid);
+    manager.AddDatabase(newdb);
+    
+    newdb->AddTable(data_table);
+    
+    // add an unique constraint to column 2
+    std::vector<std::string> column_name = {"value"};
+    bridge::IndexInfo my_index_info("value_unique", data_table->GetIndexCount(), "test_table",
+               INDEX_TYPE_BTREE,  INDEX_CONSTRAINT_TYPE_UNIQUE,
+                true, column_name);
+    peloton::bridge::DDLIndex::CreateIndex(my_index_info);
+    auto &txn_manager1 = concurrency::TransactionManagerFactory::GetInstance();
+            
+    // Test1: insert a tuple with duplicated column 2
+    // should fail
+    TransactionScheduler scheduler(2, data_table, &txn_manager1);
+    scheduler.Txn(0).Insert(2, 1);
+    scheduler.Txn(1).Insert(3, 1);
+    scheduler.Txn(0).Commit();
+    scheduler.Txn(1).Commit();
+    scheduler.Run();
+    EXPECT_TRUE(RESULT_SUCCESS == scheduler.schedules[0].txn_result);
+    EXPECT_TRUE(RESULT_ABORTED == scheduler.schedules[1].txn_result);
+    manager.DropDatabaseWithOid(current_db_oid);
+
+}
+#endif
+
+#ifdef DROPUNIQUE_TEST
+TEST_F(ConstraintsTests, DropUniqueTest){
+
+    storage::DataTable * data_table =
+        TransactionTestsUtil::CreateTable(2, "test_table", 0, 1000, 1000, false, false);
+    auto &manager = catalog::Manager::GetInstance();
+    oid_t current_db_oid = bridge::Bridge::GetCurrentDatabaseOid();
+    auto newdb = new storage::Database(current_db_oid);
+    manager.AddDatabase(newdb);
+    
+    newdb->AddTable(data_table);
+    
+    // add an unique constraint to column 2
+    std::vector<std::string> column_name = {"value"};
+    bridge::IndexInfo my_index_info("value_unique", data_table->GetIndexCount(), "test_table",
+               INDEX_TYPE_BTREE,  INDEX_CONSTRAINT_TYPE_UNIQUE,
+                true, column_name);
+    peloton::bridge::DDLIndex::CreateIndex(my_index_info);
+    auto &txn_manager1 = concurrency::TransactionManagerFactory::GetInstance();
+    char const* name = "value_unique";
+    oid_t offset =  data_table->GetSchema()->DropConstraint(name); 
+    data_table->DropIndexWithOid(offset);     
+    // Test1: insert a tuple with duplicated column 2
+    // should fail
+    TransactionScheduler scheduler(2, data_table, &txn_manager1);
+    scheduler.Txn(0).Insert(2, 1);
+    scheduler.Txn(1).Insert(3, 1);
+    scheduler.Txn(0).Commit();
+    scheduler.Txn(1).Commit();
+    scheduler.Run();
+    EXPECT_TRUE(RESULT_SUCCESS == scheduler.schedules[0].txn_result);
+    EXPECT_TRUE(RESULT_SUCCESS == scheduler.schedules[1].txn_result);
+    manager.DropDatabaseWithOid(current_db_oid);        
+}
+#endif
+
+
 }  // End test namespace
 }  // End peloton namespace
+

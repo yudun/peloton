@@ -70,7 +70,7 @@ class DDLTable {
   // Add foreign key constraint
   static bool AddConstraint(Oid relation_oid, Constraint *constraint, char* name);
   // Dynamically add unique and primary constraints
-  static bool AddIndex(IndexStmt * Istmt);
+  static bool AddIndex(Oid relation_oid, IndexStmt * Istmt);
   // Dynamically drop constraint
   static bool DropConstraint(Oid relation_oid, char* conname);
 };

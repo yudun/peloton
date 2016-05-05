@@ -82,21 +82,18 @@ bool DDLIndex::CreateIndex(IndexInfo index_info) {
   // TODO: We currently only support btree as our index implementation
   // TODO : Support other types based on "type" argument
   IndexType our_index_type = INDEX_TYPE_BTREE;
-
   // Get the database oid and table oid
   oid_t database_oid = Bridge::GetCurrentDatabaseOid();
-  assert(database_oid);
+  //assert(database_oid);
 
   // Get the table location from db
   auto &manager = catalog::Manager::GetInstance();
   storage::Database *db = manager.GetDatabaseWithOid(database_oid);
   storage::DataTable *data_table = db->GetTableWithName(table_name);
-
   catalog::Schema *tuple_schema = data_table->GetSchema();
 
   // Construct key schema
   std::vector<oid_t> key_columns;
-
   // Based on the key column info, get the oid of the given 'key' columns in the
   // tuple schema
   for (auto key_column_name : key_column_names) {
@@ -119,15 +116,14 @@ bool DDLIndex::CreateIndex(IndexInfo index_info) {
           catalog::Constraint constraint(CONSTRAINT_TYPE_PRIMARY, index_name);
           tuple_schema->AddConstraint(tuple_schema_column_itr, constraint);
         } else if (index_type == INDEX_CONSTRAINT_TYPE_UNIQUE) {
+          LOG_INFO("index_name = %s",index_name.c_str());
 	  catalog::Constraint constraint(CONSTRAINT_TYPE_UNIQUE, index_name);
-          LOG_INFO("SetUniqueIndexOffset = %u", data_table->GetIndexCount());
           constraint.SetUniqueIndexOffset(data_table->GetIndexCount());
           tuple_schema->AddConstraint(tuple_schema_column_itr, constraint);
         }
       }
     }
   }
-
   auto key_schema = catalog::Schema::CopySchema(tuple_schema, key_columns);
   key_schema->SetIndexedColumns(key_columns);
 
