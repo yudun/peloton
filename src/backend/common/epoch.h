@@ -18,8 +18,6 @@
 
 namespace peloton {
 
-#define MAX_FREE_LIST_LENGTH 1000
-
 class Epoch {
  public:
   Epoch(const oid_t e): possibly_free_list_(MAX_FREE_LIST_LENGTH), ref_count(0), id_(e) {}

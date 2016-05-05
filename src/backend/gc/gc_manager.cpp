@@ -88,7 +88,7 @@ void GCManager::PerformGC() {
     auto max_cid = txn_manager.GetMaxCommittedCid();
 
     // if max_cid == MAX_CID, then it means there's no running transaction.
-    if (max_cid != MAX_CID) {
+    //if (max_cid != MAX_CID) {
 
       // every time we garbage collect at most 1000 tuples.
       for (size_t i = 0; i < MAX_TUPLES_PER_GC; ++i) {
@@ -99,7 +99,7 @@ void GCManager::PerformGC() {
           break;
         }
 
-        if (tuple_metadata.tuple_end_cid < max_cid) {
+        if (max_cid == MAX_CID || tuple_metadata.tuple_end_cid < max_cid) {
           RefurbishTuple(tuple_metadata);
 #if 0
           // Now that we know we need to recycle tuple, we need to delete all
@@ -139,7 +139,7 @@ void GCManager::PerformGC() {
         }
       }  // end for
       //LOG_INFO("The memory usage after GC is %lu bytes", catalog::Manager::GetInstance().GetMemoryFootprint());
-    }    // end if
+    //}    // end if
     if (is_running_ == false) {
       return;
     }

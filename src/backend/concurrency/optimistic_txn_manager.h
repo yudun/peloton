@@ -76,29 +76,35 @@ class OptimisticTxnManager : public TransactionManager {
 
     Transaction *txn = new Transaction(txn_id, begin_cid);
     current_txn = txn;
+    if(gc::GCManagerFactory::GetGCType() == GC_TYPE_EPOCH) {
+      current_epoch = new Epoch(begin_cid);
 
-    current_epoch = new Epoch(begin_cid);
-
-    // current thread joins epoch for executing transaction
-    current_epoch->Join();
-
+      // current thread joins epoch for executing transaction
+      current_epoch->Join();
+    }
     return txn;
   }
 
   virtual void EndTransaction() {
     cid_t begin_cid = current_txn->GetBeginCommitId();
     // order is important - first add to map, then call Leave();
-    AddEpochToMap(begin_cid, current_epoch);
+    if(gc::GCManagerFactory::GetGCType() == GC_TYPE_COOPERATIVE) {
+      gc::GCManagerFactory::GetInstance().PerformGC();
+    } else if (gc::GCManagerFactory::GetGCType() == GC_TYPE_EPOCH) {
+      AddEpochToMap(begin_cid, current_epoch);
+    }
+
     {
       std::lock_guard<boost::detail::spinlock> guard(lock);
       running_txn_buckets_[begin_cid % RUNNING_TXN_BUCKET_NUM].erase(begin_cid);
     }
 
-    if(current_epoch->Leave()) {
-      // if Leave() returns true, we can safely delete current_epoch
-      delete current_epoch;
+    if (gc::GCManagerFactory::GetGCType() == GC_TYPE_EPOCH) {
+      if(current_epoch->Leave()) {
+        // if Leave() returns true, we can safely delete current_epoch
+        delete current_epoch;
+      }
     }
-
     current_epoch = nullptr;
     delete current_txn;
     current_txn = nullptr;
