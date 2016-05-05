@@ -918,7 +918,7 @@ TEST_F(ConstraintsTests, DropUniqueTest){
     scheduler.Run();
     EXPECT_TRUE(RESULT_SUCCESS == scheduler.schedules[0].txn_result);
     EXPECT_TRUE(RESULT_SUCCESS == scheduler.schedules[1].txn_result);
-            
+    manager.DropDatabaseWithOid(current_db_oid);        
 }
 #endif
 
