@@ -57,12 +57,12 @@ void GCManager::RefurbishTuple(TupleMetadata tuple_metadata) {
   if (free_map_.find(tuple_metadata.table_id, free_list) ==
       true) {
     // if the entry for tuple_metadata.table_id exists.
-    free_list.second -> Push(tuple_metadata);
+    free_list.second -> TryPush(tuple_metadata);
     free_list.first = free_list.first + 1;
   } else {
     // if the entry for tuple_metadata.table_id does not exist.
     free_list.second.reset(new LockfreeQueue<TupleMetadata>(MAX_TUPLES_PER_GC));
-    free_list.second ->Push(tuple_metadata);
+    free_list.second ->TryPush(tuple_metadata);
     free_list.first = 1;
     free_map_[tuple_metadata.table_id] = free_list;
   }
@@ -71,7 +71,7 @@ void GCManager::RefurbishTuple(TupleMetadata tuple_metadata) {
 // GC for epoch based co-operative scheme
 void GCManager::PerformGC(Epoch *e) {
   TupleMetadata tuple_metadata;
-  while(e->possibly_free_list_.Pop(tuple_metadata)) {
+  while(e->possibly_free_list_.TryPop(tuple_metadata)) {
     RefurbishTuple(tuple_metadata);
   }
 }
@@ -95,7 +95,7 @@ void GCManager::PerformGC() {
 
         TupleMetadata tuple_metadata;
         // if there's no more tuples in the queue, then break.
-        if (possibly_free_list_.Pop(tuple_metadata) == false) {
+        if (possibly_free_list_.TryPop(tuple_metadata) == false) {
           break;
         }
 
@@ -125,17 +125,17 @@ void GCManager::PerformGC() {
           if (free_map_.find(tuple_metadata.table_id, free_list) ==
               true) {
             // if the entry for tuple_metadata.table_id exists.
-            free_list->Push(tuple_metadata);
+            free_list->TryPush(tuple_metadata);
           } else {
             // if the entry for tuple_metadata.table_id does not exist.
             free_list.reset(new LockfreeQueue<TupleMetadata>(MAX_TUPLES_PER_GC));
-            free_list->Push(tuple_metadata);
+            free_list->TryPush(tuple_metadata);
             free_map_[tuple_metadata.table_id] = free_list;
           }
 #endif
         } else {
           // if a tuple can't be reaped, add it back to the list.
-          possibly_free_list_.Push(tuple_metadata);
+          possibly_free_list_.TryPush(tuple_metadata);
         }
       }  // end for
       //LOG_INFO("The memory usage after GC is %lu bytes", catalog::Manager::GetInstance().GetMemoryFootprint());
@@ -166,9 +166,10 @@ void GCManager::RecycleTupleSlot(const oid_t &table_id, const oid_t &tile_group_
   tuple_metadata.tuple_end_cid = tuple_end_cid;
 
   if (this->gc_type_ == GC_TYPE_EPOCH) {
-    peloton::concurrency::current_epoch->AddToPossiblyFreeList(tuple_metadata);
+    //peloton::concurrency::current_epoch->AddToPossiblyFreeList(tuple_metadata);
+    peloton::concurrency::current_epoch->possibly_free_list_.TryPush(tuple_metadata);
   } else {
-    possibly_free_list_.Push(tuple_metadata);
+    possibly_free_list_.TryPush(tuple_metadata);
   }
 }
 
@@ -183,7 +184,7 @@ ItemPointer GCManager::ReturnFreeSlot(const oid_t &table_id) {
   // if there exists free_list
   if (free_map_.find(table_id, free_list) == true) {
     TupleMetadata tuple_metadata;
-    if (free_list.second->Pop(tuple_metadata) == true) {
+    if (free_list.second->TryPop(tuple_metadata) == true) {
       free_list.first = free_list.first - 1;
       return ItemPointer(tuple_metadata.tile_group_id, tuple_metadata.tuple_slot_id);
     }
@@ -211,12 +212,12 @@ size_t GCManager::GetRecycledTupleSlotCountPerTileGroup(const oid_t& table_id, c
       size_t size = free_list.first;
       for(unsigned i = 0; i < size; ++i) {
         TupleMetadata tuple_metadata;
-        if (free_list.second->Pop(tuple_metadata)) {
+        if (free_list.second->TryPop(tuple_metadata)) {
           if (tuple_metadata.tile_group_id == tile_group_id)
           {
             count++;
           }
-          free_list.second -> Push(tuple_metadata);
+          free_list.second -> TryPush(tuple_metadata);
         }
       }
     }

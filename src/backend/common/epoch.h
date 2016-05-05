@@ -27,7 +27,7 @@ class Epoch {
   std::atomic<uint64_t> ref_count;  // number of threads in epoch
   void Join();
   bool Leave();
-  void AddToPossiblyFreeList(const TupleMetadata tm);
+  //void AddToPossiblyFreeList(const TupleMetadata tm);
 
   oid_t GetEpochId() { return id_; }
  private:

@@ -18,9 +18,9 @@
 
 namespace peloton {
 
-void Epoch::AddToPossiblyFreeList(const TupleMetadata tm) {
-  possibly_free_list_.Push(tm);
-}
+//void Epoch::AddToPossiblyFreeList(const TupleMetadata tm) {
+//  possibly_free_list_.Push(tm);
+//}
 
 void Epoch::Join() {
    // We call join from every operation that needs to be performed on the tree.
