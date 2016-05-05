@@ -38,7 +38,7 @@
 #define FOREIGHN_KEY_CASCADE_UPDATE_TEST
 #define FOREIGHN_KEY_SETNULL_UPDATE_TEST
 #define DROPSETNOTNULL_TEST
-#define DROPUNIQUE_TEST
+//#define DROPUNIQUE_TEST
 #define SETUNIQUE_TEST
 
 namespace peloton {
@@ -858,7 +858,7 @@ TEST_F(ConstraintsTests, SetUniqueTest) {
         TransactionTestsUtil::CreateTable(2, "test_table", 0, 1000, 1000, false, false);
     auto &manager = catalog::Manager::GetInstance();
     oid_t current_db_oid = bridge::Bridge::GetCurrentDatabaseOid();
-    auto newdb = new storage::Database(current_db_oid);
+    storage::Database* newdb = new storage::Database(current_db_oid);
     manager.AddDatabase(newdb);
     
     newdb->AddTable(data_table);
@@ -881,7 +881,7 @@ TEST_F(ConstraintsTests, SetUniqueTest) {
     scheduler.Run();
     EXPECT_TRUE(RESULT_SUCCESS == scheduler.schedules[0].txn_result);
     EXPECT_TRUE(RESULT_ABORTED == scheduler.schedules[1].txn_result);
-
+    delete newdb;
 
 }
 #endif
@@ -893,8 +893,9 @@ TEST_F(ConstraintsTests, DropUniqueTest){
             TransactionTestsUtil::CreateTable(2, "test_table", 0, 1000, 1000, false, false);
     auto &manager = catalog::Manager::GetInstance();
     oid_t current_db_oid = bridge::Bridge::GetCurrentDatabaseOid();
-    auto newdb = new storage::Database(current_db_oid);
-    manager.AddDatabase(newdb);
+    //std::unique<storage::Database> newdb(new storage::Database(current_db_oid));
+    storage::Database* newdb = new storage::Database(current_db_oid);
+    manager.AddDatabase( newdb );
 
     newdb->AddTable(data_table);
 
@@ -918,6 +919,7 @@ TEST_F(ConstraintsTests, DropUniqueTest){
     scheduler.Run();
     EXPECT_TRUE(RESULT_SUCCESS == scheduler.schedules[0].txn_result);
     EXPECT_TRUE(RESULT_SUCCESS == scheduler.schedules[1].txn_result);
+    delete newdb;   
 
 }
 #endif
