@@ -87,6 +87,8 @@ class GCManager {
   // The global possibly free list used by vacuum and cooperative modes
   LockfreeQueue<TupleMetadata> possibly_free_list_;
   // Maps table ids to the list of free tuples in the table
+  // We are using the third-party cuckoohash_map, as our look-free concurrent
+  // hashmap. Source code: https://github.com/efficient/libcuckoo
   cuckoohash_map<oid_t, std::pair<size_t, std::shared_ptr<LockfreeQueue<TupleMetadata>>>> free_map_;
   // mutex to access the free map
   std::mutex free_map_mutex;
