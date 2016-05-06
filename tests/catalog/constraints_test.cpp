@@ -947,6 +947,7 @@ TEST_F(ConstraintsTests, CheckConstrainTest) {
 
   {
     char query_string[1024];
+
     strcpy(query_string,
            "CREATE TABLE a4 ("
            "    a integer,"
