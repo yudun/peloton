@@ -56,7 +56,7 @@ namespace test {
 // GC Tests
 //===--------------------------------------------------------------------===//
 
-class GCTests : public PelotonTest {};
+class GCUpdateTestEpoch : public PelotonTest {};
 
 std::atomic<int> tuple_id;
 std::atomic<int> delete_tuple_id;
@@ -161,7 +161,7 @@ int SeqScanCount(storage::DataTable *table,
   return tuple_cnt;
 }
 
-TEST_F(GCTests, UpdateTest) {
+TEST_F(GCUpdateTestEpoch, UpdateTest) {
 
   peloton::gc::GCManagerFactory::Configure(type);
   peloton::gc::GCManagerFactory::GetInstance().StartGC();

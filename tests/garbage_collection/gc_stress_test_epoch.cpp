@@ -56,7 +56,7 @@ namespace test {
 // GC Tests
 //===--------------------------------------------------------------------===//
 
-class GCTests : public PelotonTest {};
+class GCStressTestEpoch : public PelotonTest {};
 
 std::atomic<int> tuple_id;
 std::atomic<int> delete_tuple_id;
@@ -120,7 +120,7 @@ void DeleteTuple(storage::DataTable *table) {
   txn_manager.CommitTransaction();
 }
 
-TEST_F(GCTests, StressTests) {
+TEST_F(GCStressTestEpoch, StressTests) {
 
   peloton::gc::GCManagerFactory::Configure(type);
   peloton::gc::GCManagerFactory::GetInstance().StartGC();
