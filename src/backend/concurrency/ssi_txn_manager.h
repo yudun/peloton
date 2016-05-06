@@ -47,8 +47,7 @@ struct ReadList {
 };
 
 struct SIReadLock {
-  SIReadLock() : list(nullptr) {}
-  ;
+  SIReadLock() : list(nullptr){};
   ReadList *list;
   std::mutex mutex;
   void Lock() { mutex.lock(); }
@@ -160,7 +159,8 @@ class SsiTxnManager : public TransactionManager {
              tuple_id);
 
     auto tile_group_header = catalog::Manager::GetInstance()
-        .GetTileGroup(tile_group_id)->GetHeader();
+                                 .GetTileGroup(tile_group_id)
+                                 ->GetHeader();
 
     assert(tile_group_header->GetTransactionId(tuple_id) == txn_id);
     assert(current_txn->GetTransactionId() == txn_id);
@@ -176,7 +176,8 @@ class SsiTxnManager : public TransactionManager {
   inline txn_id_t GetCreatorTxnId(storage::TileGroup *tile_group,
                                   const oid_t &tuple_id) {
     return *(txn_id_t *)(tile_group->GetHeader()->GetReservedFieldRef(
-        tuple_id) + CREATOR_OFFSET);
+                             tuple_id) +
+                         CREATOR_OFFSET);
   }
 
   void GetReadLock(const storage::TileGroupHeader *const tile_group_header,
@@ -198,8 +199,9 @@ class SsiTxnManager : public TransactionManager {
     ReadList *reader = new ReadList(current_ssi_txn_ctx);
 
     GetReadLock(tile_group->GetHeader(), tuple_id);
-    ReadList **headp = (ReadList **)(
-        tile_group->GetHeader()->GetReservedFieldRef(tuple_id) + LIST_OFFSET);
+    ReadList **headp =
+        (ReadList **)(tile_group->GetHeader()->GetReservedFieldRef(tuple_id) +
+                      LIST_OFFSET);
     reader->next = *headp;
     *headp = reader;
     ReleaseReadLock(tile_group->GetHeader(), tuple_id);
@@ -212,8 +214,9 @@ class SsiTxnManager : public TransactionManager {
     GetReadLock(tile_group_header, tuple_id);
     LOG_INFO("Acquired");
 
-    ReadList **headp = (ReadList **)(
-        tile_group_header->GetReservedFieldRef(tuple_id) + LIST_OFFSET);
+    ReadList **headp =
+        (ReadList **)(tile_group_header->GetReservedFieldRef(tuple_id) +
+                      LIST_OFFSET);
 
     ReadList fake_header;
     fake_header.next = *headp;
@@ -248,24 +251,24 @@ class SsiTxnManager : public TransactionManager {
   }
 
   inline bool GetInConflict(SsiTxnContext *txn_ctx) {
-    //assert(txn_table_.count(txn_id) != 0);
+    // assert(txn_table_.count(txn_id) != 0);
     return txn_ctx->in_conflict_;
   }
 
   inline bool GetOutConflict(SsiTxnContext *txn_ctx) {
-    //assert(txn_table_.count(txn_id) != 0);
+    // assert(txn_table_.count(txn_id) != 0);
     return txn_ctx->out_conflict_;
   }
 
   inline void SetInConflict(SsiTxnContext *txn_ctx) {
-    //assert(txn_table_.count(txn_id) != 0);
+    // assert(txn_table_.count(txn_id) != 0);
 
     LOG_INFO("Set in conflict %lu", txn_ctx->transaction_->GetTransactionId());
     txn_ctx->in_conflict_ = true;
   }
 
   inline void SetOutConflict(SsiTxnContext *txn_ctx) {
-    //assert(txn_table_.count(txn_id) != 0);
+    // assert(txn_table_.count(txn_id) != 0);
 
     LOG_INFO("Set out conflict %lu", txn_ctx->transaction_->GetTransactionId());
     txn_ctx->out_conflict_ = true;

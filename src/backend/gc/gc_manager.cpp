@@ -23,12 +23,11 @@ void GCManager::StartGC() {
   if (this->gc_type_ == GC_TYPE_OFF) {
     return;
   }
-  if(this->gc_type_ == GC_TYPE_VACUUM) {
-	std::thread(&GCManager::Poll, this).detach();
+  if (this->gc_type_ == GC_TYPE_VACUUM) {
+    std::thread(&GCManager::Poll, this).detach();
   }
   this->is_running_ = true;
 }
-
 
 // Stops the GC
 void GCManager::StopGC() {
@@ -44,33 +43,30 @@ void GCManager::StopGC() {
 void GCManager::RefurbishTuple(TupleMetadata tuple_metadata) {
   auto &manager = catalog::Manager::GetInstance();
   auto tile_group_header =
-    manager.GetTileGroup(tuple_metadata.tile_group_id)->GetHeader();
+      manager.GetTileGroup(tuple_metadata.tile_group_id)->GetHeader();
 
   // Set the values for the tuple slot such that when this
   // can be returned by ReturnFreeSlow and used as a new tuple slot
   // by the calling function
   tile_group_header->SetTransactionId(tuple_metadata.tuple_slot_id,
-      INVALID_TXN_ID);
-  tile_group_header->SetBeginCommitId(tuple_metadata.tuple_slot_id,
-      MAX_CID);
-  tile_group_header->SetEndCommitId(tuple_metadata.tuple_slot_id,
-      MAX_CID);
+                                      INVALID_TXN_ID);
+  tile_group_header->SetBeginCommitId(tuple_metadata.tuple_slot_id, MAX_CID);
+  tile_group_header->SetEndCommitId(tuple_metadata.tuple_slot_id, MAX_CID);
 
   std::pair<size_t, std::shared_ptr<LockfreeQueue<TupleMetadata>>> free_list;
 
   // if the entry for table_id exists.
-  if (free_map_.find(tuple_metadata.table_id, free_list) ==
-      true) {
+  if (free_map_.find(tuple_metadata.table_id, free_list) == true) {
     // if the entry for tuple_metadata.table_id exists.
     free_map_.erase(tuple_metadata.table_id);
-	// update the free list and its size
-    free_list.second -> Push(tuple_metadata);
+    // update the free list and its size
+    free_list.second->Push(tuple_metadata);
     free_list.first = free_list.first + 1;
   } else {
     // if the entry for tuple_metadata.table_id does not exist
-	// create a new free list and initialize its size
+    // create a new free list and initialize its size
     free_list.second.reset(new LockfreeQueue<TupleMetadata>(max_tuples_per_gc));
-    free_list.second ->Push(tuple_metadata);
+    free_list.second->Push(tuple_metadata);
     free_list.first = 1;
   }
   // Update the map corresponding to the table to now have
@@ -82,7 +78,7 @@ void GCManager::RefurbishTuple(TupleMetadata tuple_metadata) {
 void GCManager::PerformGC(Epoch *e) {
   TupleMetadata tuple_metadata;
   // Refurbish tuples from the epoch
-  while(e->possibly_free_list_.Pop(tuple_metadata)) {
+  while (e->possibly_free_list_.Pop(tuple_metadata)) {
     RefurbishTuple(tuple_metadata);
   }
 }
@@ -103,8 +99,8 @@ void GCManager::PerformGC() {
     if (possibly_free_list_.Pop(tuple_metadata) == false) {
       break;
     }
-	// if there are no transactions running or if this tuple is not visible to
-	// any of the running transactions
+    // if there are no transactions running or if this tuple is not visible to
+    // any of the running transactions
     if (max_cid == MAX_CID || tuple_metadata.tuple_end_cid <= max_cid) {
       RefurbishTuple(tuple_metadata);
     } else {
@@ -124,7 +120,10 @@ void GCManager::Poll() {
 }
 
 // called by transaction manager.
-void GCManager::RecycleTupleSlot(const oid_t &table_id, const oid_t &tile_group_id, const oid_t &tuple_id, const cid_t &tuple_end_cid) {
+void GCManager::RecycleTupleSlot(const oid_t &table_id,
+                                 const oid_t &tile_group_id,
+                                 const oid_t &tuple_id,
+                                 const cid_t &tuple_end_cid) {
   if (this->gc_type_ == GC_TYPE_OFF) {
     return;
   }
@@ -144,7 +143,6 @@ void GCManager::RecycleTupleSlot(const oid_t &table_id, const oid_t &tile_group_
   }
 }
 
-
 // this function returns a free tuple slot, if one exists
 ItemPointer GCManager::ReturnFreeSlot(const oid_t &table_id) {
   if (this->gc_type_ == GC_TYPE_OFF) {
@@ -157,7 +155,8 @@ ItemPointer GCManager::ReturnFreeSlot(const oid_t &table_id) {
     TupleMetadata tuple_metadata;
     if (free_list.second->Pop(tuple_metadata) == true) {
       free_list.first = free_list.first - 1;
-      return ItemPointer(tuple_metadata.tile_group_id, tuple_metadata.tuple_slot_id);
+      return ItemPointer(tuple_metadata.tile_group_id,
+                         tuple_metadata.tuple_slot_id);
     }
   }
   return ItemPointer();
@@ -166,14 +165,14 @@ ItemPointer GCManager::ReturnFreeSlot(const oid_t &table_id) {
 // delete a tuple from all its indexes it belongs to.
 // TODO: we do not perform this function,
 // as we do not have concurrent bw tree right now.
-void GCManager::DeleteTupleFromIndexes(const TupleMetadata &tuple_metadata __attribute__((unused))) {
-}
+void GCManager::DeleteTupleFromIndexes(const TupleMetadata &tuple_metadata
+                                       __attribute__((unused))) {}
 
 // Get the number of tuples refurbished in a tile group in a table
-size_t GCManager::GetRefurbishedTupleSlotCountPerTileGroup(const oid_t& table_id, const oid_t& tile_group_id) {
+size_t GCManager::GetRefurbishedTupleSlotCountPerTileGroup(
+    const oid_t &table_id, const oid_t &tile_group_id) {
   // if GC mode is off, return 0
-  if (this -> gc_type_ == GC_TYPE_OFF)
-  {
+  if (this->gc_type_ == GC_TYPE_OFF) {
     return 0;
   }
   size_t count = 0;
@@ -183,17 +182,16 @@ size_t GCManager::GetRefurbishedTupleSlotCountPerTileGroup(const oid_t& table_id
     // if there exists free_list for this table
     if (free_map_.find(table_id, free_list)) {
       size_t size = free_list.first;
-	  // iterate over the free list
-	  for(unsigned i = 0; i < size; ++i) {
-		// pop the queue and then later push it back
+      // iterate over the free list
+      for (unsigned i = 0; i < size; ++i) {
+        // pop the queue and then later push it back
         TupleMetadata tuple_metadata;
         if (free_list.second->Pop(tuple_metadata)) {
-		  //check whether the tuple belongs to this tile group
-          if (tuple_metadata.tile_group_id == tile_group_id)
-          {
+          // check whether the tuple belongs to this tile group
+          if (tuple_metadata.tile_group_id == tile_group_id) {
             count++;
           }
-          free_list.second -> Push(tuple_metadata);
+          free_list.second->Push(tuple_metadata);
         }
       }
     }

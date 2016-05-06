@@ -73,13 +73,13 @@ class OptimisticTxnManager : public TransactionManager {
     {
       std::lock_guard<boost::detail::spinlock> guard(lock);
       begin_cid = GetNextCommitId();
-      running_txn_buckets_[begin_cid % RUNNING_TXN_BUCKET_NUM][begin_cid] = txn_id;
+      running_txn_buckets_[begin_cid % RUNNING_TXN_BUCKET_NUM][begin_cid] =
+          txn_id;
     }
 
     Transaction *txn = new Transaction(txn_id, begin_cid);
     current_txn = txn;
-    if(gc::GCManagerFactory::GetGCType() == GC_TYPE_EPOCH)
-    {
+    if (gc::GCManagerFactory::GetGCType() == GC_TYPE_EPOCH) {
       // create epoch with id same as this transactions begin_cid
       current_epoch = new Epoch(begin_cid);
       // current thread joins epoch for executing transaction
@@ -91,11 +91,10 @@ class OptimisticTxnManager : public TransactionManager {
 
   virtual void EndTransaction() {
     cid_t begin_cid = current_txn->GetBeginCommitId();
-    if(gc::GCManagerFactory::GetGCType() == GC_TYPE_COOPERATIVE) {
-	  // If cooperative mode, then just call perform GC
+    if (gc::GCManagerFactory::GetGCType() == GC_TYPE_COOPERATIVE) {
+      // If cooperative mode, then just call perform GC
       gc::GCManagerFactory::GetInstance().PerformGC();
-    } else if(gc::GCManagerFactory::GetGCType() == GC_TYPE_EPOCH)
-    {
+    } else if (gc::GCManagerFactory::GetGCType() == GC_TYPE_EPOCH) {
       // order is important - first add to map, then call Leave();
       AddEpochToMap(begin_cid, current_epoch);
     }
@@ -104,8 +103,8 @@ class OptimisticTxnManager : public TransactionManager {
       running_txn_buckets_[begin_cid % RUNNING_TXN_BUCKET_NUM].erase(begin_cid);
     }
 
-    if(gc::GCManagerFactory::GetGCType() == GC_TYPE_EPOCH){
-      if(current_epoch->Leave()) {
+    if (gc::GCManagerFactory::GetGCType() == GC_TYPE_EPOCH) {
+      if (current_epoch->Leave()) {
         // if Leave() returns true, we can safely delete current_epoch
         delete current_epoch;
       }
@@ -122,21 +121,22 @@ class OptimisticTxnManager : public TransactionManager {
     for (size_t i = 0; i < RUNNING_TXN_BUCKET_NUM; ++i) {
       {
         std::lock_guard<boost::detail::spinlock> guard(lock);
-        if(running_txn_buckets_[i].size()) {
-          if(running_txn_buckets_[i].begin()->first < min_running_cid) {
+        if (running_txn_buckets_[i].size()) {
+          if (running_txn_buckets_[i].begin()->first < min_running_cid) {
             min_running_cid = running_txn_buckets_[i].begin()->first;
           }
         }
       }
     }
-    if(min_running_cid == MAX_CID) {
+    if (min_running_cid == MAX_CID) {
       return MAX_CID;
     }
     return min_running_cid - 1;
   }
 
  private:
-  boost::container::flat_map<txn_id_t, cid_t> running_txn_buckets_[RUNNING_TXN_BUCKET_NUM];
+  boost::container::flat_map<txn_id_t, cid_t>
+      running_txn_buckets_[RUNNING_TXN_BUCKET_NUM];
   boost::detail::spinlock lock;
 };
 }

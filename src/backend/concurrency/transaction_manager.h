@@ -48,7 +48,6 @@ class TransactionManager {
 
   virtual ~TransactionManager() {}
 
-
   txn_id_t GetNextTransactionId() { return next_txn_id_++; }
 
   cid_t GetNextCommitId() { return next_cid_++; }
@@ -62,7 +61,8 @@ class TransactionManager {
   bool IsVisbleOrDirty(__attribute__((unused)) const storage::Tuple *key,
                        const ItemPointer &position) {
     auto tile_group_header = catalog::Manager::GetInstance()
-        .GetTileGroup(position.block)->GetHeader();
+                                 .GetTileGroup(position.block)
+                                 ->GetHeader();
     auto tuple_id = position.offset;
 
     txn_id_t tuple_txn_id = tile_group_header->GetTransactionId(tuple_id);
@@ -155,9 +155,12 @@ class TransactionManager {
    * concurrency control) tuples into possibly free from all underlying
    * concurrency implementations of transactions.
    */
-  void RecycleTupleSlot(const oid_t &tile_group_id, const oid_t &tuple_id, const cid_t &tuple_end_cid) {
-    auto tile_group = catalog::Manager::GetInstance().GetTileGroup(tile_group_id);
-    gc::GCManagerFactory::GetInstance().RecycleTupleSlot(tile_group->GetTableId(), tile_group_id, tuple_id, tuple_end_cid);
+  void RecycleTupleSlot(const oid_t &tile_group_id, const oid_t &tuple_id,
+                        const cid_t &tuple_end_cid) {
+    auto tile_group =
+        catalog::Manager::GetInstance().GetTileGroup(tile_group_id);
+    gc::GCManagerFactory::GetInstance().RecycleTupleSlot(
+        tile_group->GetTableId(), tile_group_id, tuple_id, tuple_end_cid);
   }
 
   // Txn manager may store related information in TileGroupHeader, so when
@@ -171,7 +174,7 @@ class TransactionManager {
     current_txn->SetResult(result);
   }
 
-  //for use by recovery
+  // for use by recovery
   void SetNextCid(cid_t cid) { next_cid_ = cid; }
 
   virtual Transaction *BeginTransaction() = 0;
@@ -194,29 +197,28 @@ class TransactionManager {
 
   bool PerformEpochCAS(cid_t old_val, cid_t new_val) {
     bool retval = false;
-    retval = cid_of_smallest_epoch_cleaned_.compare_exchange_strong(old_val, new_val);
+    retval = cid_of_smallest_epoch_cleaned_.compare_exchange_strong(old_val,
+                                                                    new_val);
     return retval;
   }
 
   oid_t GetCurrentEpochId() { return next_cid_.load(); }
 
-  cid_t GetSmallestEpochCleanedCid() { return cid_of_smallest_epoch_cleaned_.load(); }
+  cid_t GetSmallestEpochCleanedCid() {
+    return cid_of_smallest_epoch_cleaned_.load();
+  }
 
-  Epoch * GetEpoch(oid_t e) {
+  Epoch *GetEpoch(oid_t e) {
     Epoch *epoch = nullptr;
-    if(epoch_map_.find(e, epoch)) {
+    if (epoch_map_.find(e, epoch)) {
       return epoch;
     }
     return nullptr;
   }
 
-  void EraseEpoch(oid_t e) {
-    epoch_map_.erase(e);
-  }
+  void EraseEpoch(oid_t e) { epoch_map_.erase(e); }
 
-  void AddEpochToMap(cid_t key, Epoch *e) {
-    epoch_map_[key] = e;
-  }
+  void AddEpochToMap(cid_t key, Epoch *e) { epoch_map_[key] = e; }
 
  private:
   std::atomic<txn_id_t> next_txn_id_;

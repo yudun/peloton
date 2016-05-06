@@ -23,8 +23,10 @@ namespace peloton {
 class Epoch {
  public:
   Epoch(const oid_t e, size_t max_epochs = MAX_EPOCHS_PER_THREAD)
-  : possibly_free_list_(FREE_LIST_LENGTH), ref_count(0), id_(e),
-  max_epochs_per_thread(max_epochs) {}
+      : possibly_free_list_(FREE_LIST_LENGTH),
+        ref_count(0),
+        id_(e),
+        max_epochs_per_thread(max_epochs) {}
   // per epoch possibly free list
   LockfreeQueue<TupleMetadata> possibly_free_list_;
   // number of threads in epoch
@@ -37,13 +39,13 @@ class Epoch {
   void AddToPossiblyFreeList(const TupleMetadata tm);
   // Return the epoch's generation id
   oid_t GetEpochId() { return id_; }
+
  private:
   // epoch generation id
   oid_t id_;
 
   // Maximum number of epochs to clean in one GC invokation (for epoch mode)
   size_t max_epochs_per_thread;
-
 };
 
 }  // namespace peloton

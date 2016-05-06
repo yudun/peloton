@@ -133,7 +133,7 @@ class SpeculativeReadTxnManager : public TransactionManager {
     // order is important - first add to map, then call Leave();
     AddEpochToMap(current_txn->GetEndCommitId(), current_epoch);
     current_epoch->Leave();
-    if(GetCurrentEpochId() > current_epoch->GetEpochId()) {
+    if (GetCurrentEpochId() > current_epoch->GetEpochId()) {
       // some thread has deleted performed GC on current epoch
       // so it is safe to delete the object
       delete current_epoch;
@@ -173,17 +173,17 @@ class SpeculativeReadTxnManager : public TransactionManager {
     bool changeable = true;
     bool ret =
         running_txn_buckets_[dst_txn_id % RUNNING_TXN_BUCKET_NUM].update_fn(
-            dst_txn_id, [&changeable, &src_txn_id](SpecTxnContext * context) {
-      context->inner_dep_set_lock_.Lock();
-      if (context->inner_dep_set_changeable_ == true) {
-        assert(context->inner_dep_set_.find(src_txn_id) ==
-               context->inner_dep_set_.end());
-        context->inner_dep_set_.insert(src_txn_id);
-      } else {
-        changeable = false;
-      }
-      context->inner_dep_set_lock_.Unlock();
-    });
+            dst_txn_id, [&changeable, &src_txn_id](SpecTxnContext *context) {
+              context->inner_dep_set_lock_.Lock();
+              if (context->inner_dep_set_changeable_ == true) {
+                assert(context->inner_dep_set_.find(src_txn_id) ==
+                       context->inner_dep_set_.end());
+                context->inner_dep_set_.insert(src_txn_id);
+              } else {
+                changeable = false;
+              }
+              context->inner_dep_set_lock_.Unlock();
+            });
 
     if (changeable == false || ret == false) {
       return false;
@@ -210,11 +210,11 @@ class SpeculativeReadTxnManager : public TransactionManager {
     // so lock first.
     spec_txn_context.inner_dep_set_lock_.Lock();
     for (auto &child_txn_id : spec_txn_context.inner_dep_set_) {
-      running_txn_buckets_[child_txn_id % RUNNING_TXN_BUCKET_NUM]
-          .update_fn(child_txn_id, [](SpecTxnContext * context) {
-        assert(context->outer_dep_count_ > 0);
-        context->outer_dep_count_--;
-      });
+      running_txn_buckets_[child_txn_id % RUNNING_TXN_BUCKET_NUM].update_fn(
+          child_txn_id, [](SpecTxnContext *context) {
+            assert(context->outer_dep_count_ > 0);
+            context->outer_dep_count_--;
+          });
     }
     spec_txn_context.inner_dep_set_changeable_ = false;
     spec_txn_context.inner_dep_set_lock_.Unlock();
@@ -225,11 +225,11 @@ class SpeculativeReadTxnManager : public TransactionManager {
     // so lock first.
     spec_txn_context.inner_dep_set_lock_.Lock();
     for (auto &child_txn_id : spec_txn_context.inner_dep_set_) {
-      running_txn_buckets_[child_txn_id % RUNNING_TXN_BUCKET_NUM]
-          .update_fn(child_txn_id, [](SpecTxnContext * context) {
-        assert(context->outer_dep_count_ > 0);
-        context->is_cascading_abort_ = true;
-      });
+      running_txn_buckets_[child_txn_id % RUNNING_TXN_BUCKET_NUM].update_fn(
+          child_txn_id, [](SpecTxnContext *context) {
+            assert(context->outer_dep_count_ > 0);
+            context->is_cascading_abort_ = true;
+          });
     }
     spec_txn_context.inner_dep_set_changeable_ = false;
     spec_txn_context.inner_dep_set_lock_.Unlock();

@@ -797,7 +797,7 @@ Value GetRandomValue(ValueType type);
 
 int64_t GetMaxTypeValue(ValueType type);
 
-bool HexDecodeToBinary(unsigned char *bufferdst, const char *hexString);
+bool HexDecodeToBinary(unsigned char* bufferdst, const char* hexString);
 
 bool IsBasedOnWriteAheadLogging(const LoggingType& logging_type);
 

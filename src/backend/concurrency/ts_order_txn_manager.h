@@ -88,7 +88,7 @@ class TsOrderTxnManager : public TransactionManager {
     // order is important - first add to map, then call Leave();
     AddEpochToMap(current_txn->GetEndCommitId(), current_epoch);
     current_epoch->Leave();
-    if(GetCurrentEpochId() > current_epoch->GetEpochId()) {
+    if (GetCurrentEpochId() > current_epoch->GetEpochId()) {
       // some thread has deleted performed GC on current epoch
       // so it is safe to delete the object
       delete current_epoch;
@@ -137,7 +137,6 @@ class TsOrderTxnManager : public TransactionManager {
   }
 
   cuckoohash_map<txn_id_t, cid_t> running_txn_buckets_[RUNNING_TXN_BUCKET_NUM];
-
 };
 }
 }

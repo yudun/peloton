@@ -161,7 +161,8 @@ bool OptimisticTxnManager::PerformUpdate(const oid_t &tile_group_id,
   auto tile_group_header =
       catalog::Manager::GetInstance().GetTileGroup(tile_group_id)->GetHeader();
   auto new_tile_group_header = catalog::Manager::GetInstance()
-      .GetTileGroup(new_location.block)->GetHeader();
+                                   .GetTileGroup(new_location.block)
+                                   ->GetHeader();
 
   // if we can perform update, then we must have already locked the older
   // version.
@@ -212,7 +213,8 @@ bool OptimisticTxnManager::PerformDelete(const oid_t &tile_group_id,
   auto tile_group_header =
       catalog::Manager::GetInstance().GetTileGroup(tile_group_id)->GetHeader();
   auto new_tile_group_header = catalog::Manager::GetInstance()
-      .GetTileGroup(new_location.block)->GetHeader();
+                                   .GetTileGroup(new_location.block)
+                                   ->GetHeader();
 
   // if we can perform update, then we must have already locked the older
   // version.
@@ -320,19 +322,20 @@ Result OptimisticTxnManager::CommitTransaction() {
           continue;
         } else {
           if (tile_group_header->GetTransactionId(tuple_slot) ==
-                  INITIAL_TXN_ID && tile_group_header->GetBeginCommitId(
-                                        tuple_slot) <= end_commit_id &&
+                  INITIAL_TXN_ID &&
+              tile_group_header->GetBeginCommitId(tuple_slot) <=
+                  end_commit_id &&
               tile_group_header->GetEndCommitId(tuple_slot) >= end_commit_id) {
             // the version is not owned by other txns and is still visible.
             continue;
           }
         }
         LOG_TRACE("transaction id=%lu",
-                 tile_group_header->GetTransactionId(tuple_slot));
+                  tile_group_header->GetTransactionId(tuple_slot));
         LOG_TRACE("begin commit id=%lu",
-                 tile_group_header->GetBeginCommitId(tuple_slot));
+                  tile_group_header->GetBeginCommitId(tuple_slot));
         LOG_TRACE("end commit id=%lu",
-                 tile_group_header->GetEndCommitId(tuple_slot));
+                  tile_group_header->GetEndCommitId(tuple_slot));
         // otherwise, validation fails. abort transaction.
         return AbortTransaction();
       }
@@ -480,7 +483,7 @@ Result OptimisticTxnManager::AbortTransaction() {
 
         new_tile_group_header->SetTransactionId(new_version.offset,
                                                 INVALID_TXN_ID);
-        
+
         tile_group_header->SetTransactionId(tuple_slot, INITIAL_TXN_ID);
 
         // recycle the newer version.
@@ -509,7 +512,6 @@ Result OptimisticTxnManager::AbortTransaction() {
         // recycle the newer version.
         RecycleTupleSlot(new_version.block, new_version.offset, START_OID);
 
-
       } else if (tuple_entry.second == RW_TYPE_INSERT) {
         tile_group_header->SetEndCommitId(tuple_slot, MAX_CID);
         tile_group_header->SetBeginCommitId(tuple_slot, MAX_CID);
@@ -517,10 +519,10 @@ Result OptimisticTxnManager::AbortTransaction() {
         COMPILER_MEMORY_FENCE;
 
         tile_group_header->SetTransactionId(tuple_slot, INVALID_TXN_ID);
-        
+
         // recycle the newer version.
         RecycleTupleSlot(tile_group_id, tuple_slot, START_OID);
-      
+
       } else if (tuple_entry.second == RW_TYPE_INS_DEL) {
         tile_group_header->SetEndCommitId(tuple_slot, MAX_CID);
         tile_group_header->SetBeginCommitId(tuple_slot, MAX_CID);
@@ -528,7 +530,7 @@ Result OptimisticTxnManager::AbortTransaction() {
         COMPILER_MEMORY_FENCE;
 
         tile_group_header->SetTransactionId(tuple_slot, INVALID_TXN_ID);
-        
+
         // recycle the newer version.
         RecycleTupleSlot(tile_group_id, tuple_slot, START_OID);
       }
