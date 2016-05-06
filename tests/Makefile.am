@@ -46,6 +46,7 @@ include $(srcdir)/expression/Makefile.am
 include $(srcdir)/index/Makefile.am
 include $(srcdir)/language/Makefile.am
 include $(srcdir)/logging/Makefile.am
+include $(srcdir)/garbage_collection/Makefile.am
 include $(srcdir)/networking/Makefile.am
 include $(srcdir)/planner/Makefile.am
 include $(srcdir)/storage/Makefile.am
@@ -54,7 +55,7 @@ include $(srcdir)/storage/Makefile.am
 
 TESTS = $(check_SCRIPTS) $(check_PROGRAMS)
 LOG_COMPILER = $(srcdir)/test-driver.sh
- 
+
 CLEANFILES = /tmp/*.peloton
 
 check-build:

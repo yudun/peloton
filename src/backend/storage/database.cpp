@@ -120,7 +120,7 @@ void Database::UpdateStatsWithOid(const oid_t table_oid) const {
 uint64_t Database::GetMemoryFootprint() const {
   uint64_t count = 0;
   for (auto dt : tables) {
-    count += dt -> GetMemoryFootprint(dt -> GetOid());
+    if (dt != nullptr) count += dt -> GetMemoryFootprint(dt -> GetOid());
   }
   return count;
 }

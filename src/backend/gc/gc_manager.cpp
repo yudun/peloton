@@ -31,8 +31,8 @@ void GCManager::StartGC() {
 }
 
 void GCManager::StopGC() {
-  printf("The memory usage is %lu bytes for mode %d\n", catalog::Manager::GetInstance().GetMemoryFootprint(), gc_type_);
-  std::this_thread::sleep_for(std::chrono::seconds(2));
+  //printf("The memory usage is %lu bytes for mode %d\n", catalog::Manager::GetInstance().GetMemoryFootprint(), gc_type_);
+  //std::this_thread::sleep_for(std::chrono::seconds(2));
   if (this->gc_type_ == GC_TYPE_OFF) {
     return;
   }

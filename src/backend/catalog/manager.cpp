@@ -180,7 +180,7 @@ uint64_t Manager::GetMemoryFootprint() {
   {
     std::lock_guard<std::mutex> lock(catalog_mutex);
       for (auto db : databases) {
-        count += db -> GetMemoryFootprint();
+        if (db != nullptr) count += db -> GetMemoryFootprint();
       }
   }
   return count;
