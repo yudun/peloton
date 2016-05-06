@@ -341,7 +341,7 @@ bool DDLTable::DropTable(Oid table_oid) {
  * @param constraint constraint
  * @return true if we add the constraint, false otherwise
  */
-bool DDLTable::AddConstraint(Oid relation_oid, Constraint *constraint, char* name) {
+bool DDLTable::AddConstraint(Oid relation_oid, Constraint *constraint,  __attribute__((__unused__))char*  name) {
   ConstraintType contype = PostgresConstraintTypeToPelotonConstraintType(
       (PostgresConstraintType)constraint->contype);
   std::vector<catalog::ForeignKey*> foreign_keys;

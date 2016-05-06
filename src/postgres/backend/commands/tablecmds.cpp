@@ -700,11 +700,8 @@ DefineRelation(CreateStmt *stmt, char relkind, Oid ownerId,
 	 */
 
 	if (rawDefaults || stmt->constraints) {
-		List *cookedConstraints =
-				AddRelationNewConstraints(rel, rawDefaults, stmt->constraints,
+		AddRelationNewConstraints(rel, rawDefaults, stmt->constraints,
 																	true, true, false);
-		//peloton:: update the constrains
-		//stmt->constraints = cookedConstraints;
 	}
 	ObjectAddressSet(address, RelationRelationId, relationId);
 
@@ -804,7 +801,6 @@ RemoveRelations(DropStmt *drop)
 	ListCell   *cell;
 	int			flags = 0;
 	LOCKMODE	lockmode = AccessExclusiveLock;
-
 	/* DROP CONCURRENTLY uses a weaker lock, and has some restrictions */
 	if (drop->concurrent)
 	{
