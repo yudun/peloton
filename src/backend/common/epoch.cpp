@@ -81,12 +81,16 @@ bool Epoch::Leave() {
         return retval;
       }
     } else if(smallest_epoch != INVALID_CID) {
+	  // There are some running threads, we can clean tuples upto max_cid
       max_cid++;
+	  // adjust max_cid according to MAX_EPOCHS_PER_THREAD
       if(max_cid - smallest_epoch > MAX_EPOCHS_PER_THREAD) {
         max_cid = smallest_epoch + MAX_EPOCHS_PER_THREAD;
       }
+	  // perform CAS so that only one thread does this
       if(txn_manager.PerformEpochCAS(smallest_epoch, max_cid)) {
         assert(max_cid >= smallest_epoch);
+		// clean the epochs from [smallest_epoch, max_cid), because we incremented max_cid above
         for(; smallest_epoch < max_cid; smallest_epoch++) {
           Epoch *e = txn_manager.GetEpoch(smallest_epoch);
           if(e == nullptr) {
@@ -96,7 +100,7 @@ bool Epoch::Leave() {
           gc_manager.PerformGC(e);
           txn_manager.EraseEpoch(smallest_epoch);
           if(e != this) {
-            // delete self reference afterwards
+            // delete self reference afterwards, handled by setting the retval
             delete e;
           } else {
             retval = true;
