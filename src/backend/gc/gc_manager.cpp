@@ -94,7 +94,6 @@ void GCManager::PerformGC() {
 
       // every time we garbage collect at most 1000 tuples.
       for (size_t i = 0; i < MAX_TUPLES_PER_GC; ++i) {
-        break;
         TupleMetadata tuple_metadata;
         // if there's no more tuples in the queue, then break.
         if (possibly_free_list_.Pop(tuple_metadata) == false) {
