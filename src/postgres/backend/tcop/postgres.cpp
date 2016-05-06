@@ -890,7 +890,7 @@ pg_plan_queries(List *querytrees, int cursorOptions, ParamListInfo boundParams)
  *
  * Execute a "simple Query" protocol message.
  */
-static void
+void
 exec_simple_query(const char *query_string)
 {
   CommandDest dest = whereToSendOutput;

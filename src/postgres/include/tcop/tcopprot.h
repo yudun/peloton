@@ -75,6 +75,10 @@ extern void process_postgres_switches(int argc, char *argv[],
 extern void PostgresMain(int argc, char *argv[],
 			 const char *dbname,
 			 const char *username) pg_attribute_noreturn();
+
+extern void
+exec_simple_query(const char *query_string);
+
 extern long get_stack_depth_rlimit(void);
 extern void ResetUsage(void);
 extern void ShowUsage(const char *title);

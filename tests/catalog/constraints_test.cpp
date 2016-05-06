@@ -24,9 +24,11 @@
 #include "backend/index/index_factory.h"
 #include "backend/bridge/ddl/bridge.h"
 #include "backend/bridge/ddl/ddl_index.h"
+#include <postgres/include/tcop/tcopprot.h>
 
 #include "catalog/constraints_tests_util.h"
 #include "concurrency/transaction_tests_util.h"
+
 
 #define NOTNULL_TEST
 #define PRIMARY_UNIQUEKEY_TEST
@@ -43,7 +45,7 @@
 #define SETUNIQUE_TEST
 
 #define FOREIGHN_KEY_DELETE_TEST
-#define CHECK_CONSTRAIN_TEST
+//#define CHECK_CONSTRAIN_TEST
 
 namespace peloton {
 namespace test {
@@ -225,6 +227,8 @@ TEST_F(ConstraintsTests, MultiTransactionUniqueConstraintsTest) {
 }
 #endif
 
+#ifdef FOREIGHN_KEY_INSERT_TEST
+
 TEST_F(ConstraintsTests, ForeignKeyTest) {
 
   // create new db
@@ -234,7 +238,7 @@ TEST_F(ConstraintsTests, ForeignKeyTest) {
   manager.AddDatabase(newdb);
   auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
 
-#ifdef FOREIGHN_KEY_INSERT_TEST
+
   //     TABLE A -- src table          TABLE B -- sink table
   // int(primary)       int(ref B)       int(primary)  int
   //    0                 1               0             0
@@ -761,11 +765,11 @@ TEST_F(ConstraintsTests, ForeignKeyTest) {
     EXPECT_EQ(11, scheduler.schedules[3].results[3]);
     EXPECT_EQ(10, scheduler.schedules[3].results[4]);
   }
-#endif
 
   // remember to drop this database from the manager, this will also indirectly delete all tables in this database
   manager.DropDatabaseWithOid(current_db_oid);
 }
+#endif
 
 
 #ifdef DROPSETNOTNULL_TEST
@@ -929,7 +933,7 @@ TEST_F(ConstraintsTests, DropUniqueTest){
 
 #ifdef CHECK_CONSTRAIN_TEST
 
-TEST_F(ConstraintsTests, CombinedPrimaryKeyTest) {
+TEST_F(ConstraintsTests, CheckConstrainTest) {
   // First, generate the table with index
   // this table has 10 rows:
   //  int(primary)  int(primary)
@@ -939,30 +943,32 @@ TEST_F(ConstraintsTests, CombinedPrimaryKeyTest) {
   //  .....
   //  9             9
 
-  auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
+  //auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
 
   {
-    std::unique_ptr<storage::DataTable> data_table(
-    TransactionTestsUtil::CreateCombinedPrimaryKeyTable());
-    // Test1: insert 2 tuple with duplicated primary key
-    // txn1: insert (0, 1) -- success
-    // txn0 commit
-    // txn1: insert (1, 1) -- fail
-    // txn1 commit
-    TransactionScheduler scheduler(2, data_table.get(), &txn_manager);
-    scheduler.Txn(0).Insert(0, 1);
-    scheduler.Txn(0).Commit();
-    scheduler.Txn(1).Insert(1, 1);
-    scheduler.Txn(1).Commit();
+    char query_string[1024];
+    strcpy(query_string,
+           "CREATE TABLE a4 ("
+           "    a integer,"
+           "    b integer, CHECK (a + b >0)"
+           ");"
+    );
 
-    scheduler.Run();
+    LOG_INFO("try to do query: %s", query_string);
 
-    EXPECT_TRUE(RESULT_SUCCESS == scheduler.schedules[0].txn_result);
-    EXPECT_TRUE(RESULT_ABORTED == scheduler.schedules[1].txn_result);
+    // Test1: insert a tuple with column 1 = null
+    bool hasException = false;
+    try {
+      exec_simple_query(query_string);
+    } catch (ConstraintException e) {
+      hasException = true;
+    }
+    EXPECT_FALSE(hasException);
+
   }
 }
 
-TEST_F(ConstraintsTests, MultiTransactionUniqueConstraintsTest) {
+TEST_F(ConstraintsTests, MultiCheckConstrainTest) {
   // First, generate the table with index
   // this table has 10 rows:
   //  int(primary)  int(unique)

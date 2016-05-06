@@ -18,6 +18,5 @@ namespace concurrency {
 
   volatile cid_t EpochManager::curr_epoch_ = 1;
 
-//what happen
 }
 }
