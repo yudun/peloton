@@ -31,7 +31,8 @@ void GCManager::StartGC() {
 }
 
 void GCManager::StopGC() {
-  LOG_INFO("The memory usage is %lu bytes", catalog::Manager::GetInstance().GetMemoryFootprint());
+  printf("The memory usage is %lu bytes for mode %d\n", catalog::Manager::GetInstance().GetMemoryFootprint(), gc_type_);
+  std::this_thread::sleep_for(std::chrono::seconds(2));
   if (this->gc_type_ == GC_TYPE_OFF) {
     return;
   }
@@ -57,6 +58,7 @@ void GCManager::RefurbishTuple(TupleMetadata tuple_metadata) {
   if (free_map_.find(tuple_metadata.table_id, free_list) ==
       true) {
     // if the entry for tuple_metadata.table_id exists.
+    free_map_.erase(tuple_metadata.table_id);
     free_list.second -> Push(tuple_metadata);
     free_list.first = free_list.first + 1;
   } else {
@@ -64,8 +66,8 @@ void GCManager::RefurbishTuple(TupleMetadata tuple_metadata) {
     free_list.second.reset(new LockfreeQueue<TupleMetadata>(MAX_TUPLES_PER_GC));
     free_list.second ->Push(tuple_metadata);
     free_list.first = 1;
-    free_map_[tuple_metadata.table_id] = free_list;
   }
+  free_map_[tuple_metadata.table_id] = free_list;
 }
 
 // GC for epoch based co-operative scheme
@@ -88,18 +90,18 @@ void GCManager::PerformGC() {
     auto max_cid = txn_manager.GetMaxCommittedCid();
 
     // if max_cid == MAX_CID, then it means there's no running transaction.
-    if (max_cid != MAX_CID) {
+    //if (max_cid != MAX_CID) {
 
       // every time we garbage collect at most 1000 tuples.
       for (size_t i = 0; i < MAX_TUPLES_PER_GC; ++i) {
-
+        break;
         TupleMetadata tuple_metadata;
         // if there's no more tuples in the queue, then break.
         if (possibly_free_list_.Pop(tuple_metadata) == false) {
           break;
         }
 
-        if (tuple_metadata.tuple_end_cid < max_cid) {
+        if (max_cid == MAX_CID || tuple_metadata.tuple_end_cid < max_cid) {
           RefurbishTuple(tuple_metadata);
 #if 0
           // Now that we know we need to recycle tuple, we need to delete all
@@ -139,7 +141,7 @@ void GCManager::PerformGC() {
         }
       }  // end for
       //LOG_INFO("The memory usage after GC is %lu bytes", catalog::Manager::GetInstance().GetMemoryFootprint());
-    }    // end if
+    //}    // end if
     if (is_running_ == false) {
       return;
     }
@@ -150,7 +152,7 @@ void GCManager::Poll() {
   while (1) {
     LOG_INFO("Polling GC thread...");
     PerformGC();
-    std::this_thread::sleep_for(std::chrono::seconds(2));
+    std::this_thread::sleep_for(std::chrono::seconds(5));
   }
 }
 

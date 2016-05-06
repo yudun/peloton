@@ -466,7 +466,7 @@ uint64_t DataTable::GetMemoryFootprint(const oid_t table_oid) const {
   for (size_t i = 0; i < tile_groups_.size(); ++i)
   {
     auto tile_group = GetTileGroup(i);
-    size_t recycled_count = gc::GCManagerFactory::GetInstance().GetRecycledTupleSlotCountPerTileGroup(table_oid, i);
+    size_t recycled_count = gc::GCManagerFactory::GetInstance().GetRecycledTupleSlotCountPerTileGroup(table_oid, tile_groups_[i]);
     count += tile_group -> GetMemoryFootprint(recycled_count);
   }
   return count;

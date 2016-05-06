@@ -43,6 +43,9 @@ bool Epoch::Leave() {
     auto max_cid = txn_manager.GetMaxCommittedCid();
     if(max_cid == MAX_CID) {
       assert(largest_epoch >= smallest_epoch);
+      if(largest_epoch - smallest_epoch > MAX_EPOCHS_PER_THREAD) {
+        largest_epoch = smallest_epoch + MAX_EPOCHS_PER_THREAD;
+      }
       // no transaction is running, i.e. all epochs until largest epoch can be cleaned
       if(txn_manager.PerformEpochCAS(smallest_epoch, largest_epoch)) {
         // iterate through all the epochs from smallest to largest and clean them
@@ -65,6 +68,9 @@ bool Epoch::Leave() {
       }
     } else if(smallest_epoch != INVALID_CID) {
       max_cid++;
+      if(max_cid - smallest_epoch > MAX_EPOCHS_PER_THREAD) {
+        max_cid = smallest_epoch + MAX_EPOCHS_PER_THREAD;
+      }
       if(txn_manager.PerformEpochCAS(smallest_epoch, max_cid)) {
         assert(max_cid >= smallest_epoch);
         for(; smallest_epoch < max_cid; smallest_epoch++) {

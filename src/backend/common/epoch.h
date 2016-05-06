@@ -18,7 +18,6 @@
 
 namespace peloton {
 
-#define MAX_FREE_LIST_LENGTH 1000
 
 class Epoch {
  public:
