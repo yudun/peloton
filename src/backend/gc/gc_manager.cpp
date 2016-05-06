@@ -18,6 +18,7 @@
 namespace peloton {
 namespace gc {
 
+// Starts the GC based on the GC mode
 void GCManager::StartGC() {
   if (this->gc_type_ == GC_TYPE_OFF) {
     return;
@@ -25,10 +26,11 @@ void GCManager::StartGC() {
   if(this->gc_type_ == GC_TYPE_VACUUM) {
 	std::thread(&GCManager::Poll, this).detach();
   }
-
   this->is_running_ = true;
 }
 
+
+// Stops the GC
 void GCManager::StopGC() {
   if (this->gc_type_ == GC_TYPE_OFF) {
     return;
@@ -36,11 +38,17 @@ void GCManager::StopGC() {
   this->is_running_ = false;
 }
 
+// Moves tuples from the possibly free list to the actually free list for the 
+// corresponding table and updates the mapping from the table id to the table's 
+// free list
 void GCManager::RefurbishTuple(TupleMetadata tuple_metadata) {
   auto &manager = catalog::Manager::GetInstance();
   auto tile_group_header =
     manager.GetTileGroup(tuple_metadata.tile_group_id)->GetHeader();
 
+  // Set the values for the tuple slot such that when this 
+  // can be returned by ReturnFreeSlow and used as a new tuple slot
+  // by the calling function
   tile_group_header->SetTransactionId(tuple_metadata.tuple_slot_id,
       INVALID_TXN_ID);
   tile_group_header->SetBeginCommitId(tuple_metadata.tuple_slot_id,
@@ -55,54 +63,61 @@ void GCManager::RefurbishTuple(TupleMetadata tuple_metadata) {
       true) {
     // if the entry for tuple_metadata.table_id exists.
     free_map_.erase(tuple_metadata.table_id);
+	// update the free list and its size
     free_list.second -> Push(tuple_metadata);
     free_list.first = free_list.first + 1;
   } else {
-    // if the entry for tuple_metadata.table_id does not exist.
+    // if the entry for tuple_metadata.table_id does not exist
+	// create a new free list and initialize its size
     free_list.second.reset(new LockfreeQueue<TupleMetadata>(MAX_TUPLES_PER_GC));
     free_list.second ->Push(tuple_metadata);
     free_list.first = 1;
   }
+  // Update the map corresponding to the table to now have 
+  // the updates list
   free_map_[tuple_metadata.table_id] = free_list;
 }
 
-// GC for epoch based co-operative scheme
+// GC for epoch based scheme
 void GCManager::PerformGC(Epoch *e) {
   TupleMetadata tuple_metadata;
+  // Refurbish tuples from the epoch
   while(e->possibly_free_list_.Pop(tuple_metadata)) {
     RefurbishTuple(tuple_metadata);
   }
 }
 
+// GC for vacuum and cooperative schemes
 void GCManager::PerformGC() {
   // Check if we can move anything from the possibly free list to the free list.
-
-    auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
-    auto max_cid = txn_manager.GetMaxCommittedCid();
-
-      // every time we garbage collect at most MAX_TUPLES_PER_GC tuples.
-      for (size_t i = 0; i < MAX_TUPLES_PER_GC; ++i) {
-        TupleMetadata tuple_metadata;
-        // if there's no more tuples in the queue, then break.
-        if (possibly_free_list_.Pop(tuple_metadata) == false) {
-          break;
-        }
-
-        if (max_cid == MAX_CID || tuple_metadata.tuple_end_cid <= max_cid) {
-          RefurbishTuple(tuple_metadata);
-        } else {
-          // if a tuple can't be reaped, add it back to the list.
-          possibly_free_list_.Push(tuple_metadata);
-        }
-      }  // end for
-    if (is_running_ == false) {
-      return;
+  auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
+  auto max_cid = txn_manager.GetMaxCommittedCid();
+  // if GC is not running, return without doing anything
+  if (is_running_ == false) {
+    return;
+  }
+  // every time we garbage collect at most MAX_TUPLES_PER_GC tuples.
+  for (size_t i = 0; i < MAX_TUPLES_PER_GC; ++i) {
+    TupleMetadata tuple_metadata;
+    // if there's no more tuples in the queue, then break.
+    if (possibly_free_list_.Pop(tuple_metadata) == false) {
+      break;
     }
+	// if there are no transactions running or if this tuple is not visible to 
+	// any of the running transactions
+    if (max_cid == MAX_CID || tuple_metadata.tuple_end_cid <= max_cid) {
+      RefurbishTuple(tuple_metadata);
+    } else {
+      // if a tuple can't be refurbished, add it back to the list.
+      possibly_free_list_.Push(tuple_metadata);
+    }
+  }  // end for
 }
 
+// Called 
 void GCManager::Poll() {
+  // Loop infinitely and perform GC
   while (1) {
-    LOG_INFO("Polling GC thread...");
     PerformGC();
     std::this_thread::sleep_for(std::chrono::seconds(5));
   }
@@ -113,12 +128,15 @@ void GCManager::RecycleTupleSlot(const oid_t &table_id, const oid_t &tile_group_
   if (this->gc_type_ == GC_TYPE_OFF) {
     return;
   }
+  // Populate the tuple metadata structure
   TupleMetadata tuple_metadata;
   tuple_metadata.table_id = table_id;
   tuple_metadata.tile_group_id = tile_group_id;
   tuple_metadata.tuple_slot_id = tuple_id;
   tuple_metadata.tuple_end_cid = tuple_end_cid;
 
+  // if epoch scheme, then add to the epoch specific possibly free list
+  // else add to the global possibly free list
   if (this->gc_type_ == GC_TYPE_EPOCH) {
     peloton::concurrency::current_epoch->AddToPossiblyFreeList(tuple_metadata);
   } else {
