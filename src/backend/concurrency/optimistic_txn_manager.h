@@ -80,8 +80,8 @@ class OptimisticTxnManager : public TransactionManager {
     current_txn = txn;
     if(gc::GCManagerFactory::GetGCType() == GC_TYPE_EPOCH)
     {
+      // create epoch with id same as this transactions begin_cid
       current_epoch = new Epoch(begin_cid);
-
       // current thread joins epoch for executing transaction
       current_epoch->Join();
     }
@@ -91,11 +91,12 @@ class OptimisticTxnManager : public TransactionManager {
 
   virtual void EndTransaction() {
     cid_t begin_cid = current_txn->GetBeginCommitId();
-    // order is important - first add to map, then call Leave();
     if(gc::GCManagerFactory::GetGCType() == GC_TYPE_COOPERATIVE) {
+	  // If cooperative mode, then just call perform GC
       gc::GCManagerFactory::GetInstance().PerformGC();
     } else if(gc::GCManagerFactory::GetGCType() == GC_TYPE_EPOCH)
     {
+      // order is important - first add to map, then call Leave();
       AddEpochToMap(begin_cid, current_epoch);
     }
     {
