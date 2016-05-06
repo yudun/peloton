@@ -46,6 +46,11 @@ enum CheckpointType {
   CHECKPOINT_TYPE_NORMAL = 1,
 };
 
+//===--------------------------------------------------------------------===//
+// Garbage Collection Specific Variables
+//===--------------------------------------------------------------------===//
+
+// Different GC modes
 enum GCType {
   GC_TYPE_OFF = 0,
   GC_TYPE_VACUUM = 1,
@@ -53,8 +58,11 @@ enum GCType {
   GC_TYPE_EPOCH = 3,
 };
 
+// Max tuples to clean in one GC invokation (for vacuum and cooperative modes)
 #define MAX_TUPLES_PER_GC 1000
-#define MAX_FREE_LIST_LENGTH 1000
+// Initial size of the free lists
+#define FREE_LIST_LENGTH 1000
+// Maximum number of epochs to clean in one GC invokation (for epoch mode)
 #define MAX_EPOCHS_PER_THREAD 5
 //===--------------------------------------------------------------------===//
 // Filesystem directories

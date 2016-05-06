@@ -36,7 +36,7 @@ class GCManager {
   GCManager(GCManager &&) = delete;
   GCManager &operator=(GCManager &&) = delete;
 
-  GCManager(const GCType type) : is_running_(true), gc_type_(type), possibly_free_list_(MAX_FREE_LIST_LENGTH) {}
+  GCManager(const GCType type) : is_running_(true), gc_type_(type), possibly_free_list_(FREE_LIST_LENGTH) {}
 
   ~GCManager() {
     StopGC();
@@ -60,7 +60,7 @@ class GCManager {
   // This adds a tuple to the possibly free list 
   void RecycleTupleSlot(const oid_t &table_id, const oid_t &tile_group_id, const oid_t &tuple_id, const cid_t &tuple_end_cid);
   // Helper function to get the number of tuples refurbished (present in the actually free list) 
-  size_t GetRecycledTupleSlotCountPerTileGroup(const oid_t& table_id, const oid_t& tile_group_id);
+  size_t GetRefurbishedTupleSlotCountPerTileGroup(const oid_t& table_id, const oid_t& tile_group_id);
 
   // Gets the item pointer for a tuple slot from the actually free list
   ItemPointer ReturnFreeSlot(const oid_t &table_id);

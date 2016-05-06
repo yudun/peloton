@@ -21,16 +21,22 @@ namespace peloton {
 
 class Epoch {
  public:
-  Epoch(const oid_t e): possibly_free_list_(MAX_FREE_LIST_LENGTH), ref_count(0), id_(e) {}
-  LockfreeQueue<TupleMetadata> possibly_free_list_; // per epoch possibly free list
-  std::atomic<uint64_t> ref_count;  // number of threads in epoch
+  Epoch(const oid_t e): possibly_free_list_(FREE_LIST_LENGTH), ref_count(0), id_(e) {}
+  // per epoch possibly free list
+  LockfreeQueue<TupleMetadata> possibly_free_list_;   
+  // number of threads in epoch
+  std::atomic<uint64_t> ref_count;
+  // Function to join the epoch
   void Join();
+  // Function to leave the epoch
   bool Leave();
+  // Add to the epoch's possibly free list 
   void AddToPossiblyFreeList(const TupleMetadata tm);
-
+  // Return the epoch's generation id
   oid_t GetEpochId() { return id_; }
  private:
-  oid_t id_; // epoch generation id
+  // epoch generation id
+  oid_t id_;
 };
 
 }  // namespace peloton

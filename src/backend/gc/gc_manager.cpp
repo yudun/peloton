@@ -114,7 +114,7 @@ void GCManager::PerformGC() {
   }  // end for
 }
 
-// Called 
+// Called by start GC as the thread function when mode is vacuum
 void GCManager::Poll() {
   // Loop infinitely and perform GC
   while (1) {
@@ -169,7 +169,9 @@ ItemPointer GCManager::ReturnFreeSlot(const oid_t &table_id) {
 void GCManager::DeleteTupleFromIndexes(const TupleMetadata &tuple_metadata __attribute__((unused))) {
 }
 
-size_t GCManager::GetRecycledTupleSlotCountPerTileGroup(const oid_t& table_id, const oid_t& tile_group_id) {
+// Get the number of tuples refurbished in a tile group in a table
+size_t GCManager::GetRefurbishedTupleSlotCountPerTileGroup(const oid_t& table_id, const oid_t& tile_group_id) {
+  // if GC mode is off, return 0
   if (this -> gc_type_ == GC_TYPE_OFF)
   {
     return 0;
@@ -178,12 +180,15 @@ size_t GCManager::GetRecycledTupleSlotCountPerTileGroup(const oid_t& table_id, c
   {
     std::lock_guard<std::mutex> lock(free_map_mutex);
     std::pair<size_t, std::shared_ptr<LockfreeQueue<TupleMetadata>>> free_list;
-    // if there exists free_list
+    // if there exists free_list for this table
     if (free_map_.find(table_id, free_list)) {
       size_t size = free_list.first;
-      for(unsigned i = 0; i < size; ++i) {
+	  // iterate over the free list 
+	  for(unsigned i = 0; i < size; ++i) {
+		// pop the queue and then later push it back
         TupleMetadata tuple_metadata;
         if (free_list.second->Pop(tuple_metadata)) {
+		  //check whether the tuple belongs to this tile group
           if (tuple_metadata.tile_group_id == tile_group_id)
           {
             count++;
