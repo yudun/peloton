@@ -56,7 +56,7 @@ namespace test {
 // GC Tests
 //===--------------------------------------------------------------------===//
 
-class GCTests : public PelotonTest {};
+class GCUpdateTestCoop : public PelotonTest {};
 
 std::atomic<int> tuple_id;
 std::atomic<int> delete_tuple_id;
@@ -161,7 +161,7 @@ int SeqScanCount(storage::DataTable *table,
   return tuple_cnt;
 }
 
-TEST_F(GCTests, UpdateTest) {
+TEST_F(GCUpdateTestCoop, UpdateTestCoop) {
 
   peloton::gc::GCManagerFactory::Configure(type);
   peloton::gc::GCManagerFactory::GetInstance().StartGC();
@@ -177,10 +177,8 @@ TEST_F(GCTests, UpdateTest) {
   LaunchParallelTest(1, InsertTuple, table, testing_pool);
   auto after_insert = catalog::Manager::GetInstance().GetMemoryFootprint();
   LaunchParallelTest(1, UpdateTuple, table);
-  auto after_update = catalog::Manager::GetInstance().GetMemoryFootprint();
 
   EXPECT_GT(after_insert, before_insert);
-  EXPECT_EQ(after_insert, after_update);
   // Seq scan to check number
   std::vector<oid_t> column_ids = {0};
   auto tuple_cnt = SeqScanCount(table, column_ids, nullptr);
@@ -196,6 +194,9 @@ TEST_F(GCTests, UpdateTest) {
       EXPRESSION_TYPE_COMPARE_EQUAL, tup_val_exp, const_val_exp);
 
   tuple_cnt = SeqScanCount(table, column_ids, predicate);
+  auto after_update = catalog::Manager::GetInstance().GetMemoryFootprint();
+  EXPECT_EQ(after_insert, after_update);
+
   EXPECT_EQ(tuple_cnt, 6);
 
   tuple_id = 0;

@@ -56,7 +56,7 @@ namespace test {
 // GC Tests
 //===--------------------------------------------------------------------===//
 
-class GCTests : public PelotonTest {};
+class GCStressTestCoop : public PelotonTest {};
 
 std::atomic<int> tuple_id;
 std::atomic<int> delete_tuple_id;
@@ -120,7 +120,7 @@ void DeleteTuple(storage::DataTable *table) {
   txn_manager.CommitTransaction();
 }
 
-TEST_F(GCTests, StressTests) {
+TEST_F(GCStressTestCoop, StressTests) {
 
   peloton::gc::GCManagerFactory::Configure(type);
   peloton::gc::GCManagerFactory::GetInstance().StartGC();
@@ -176,7 +176,7 @@ TEST_F(GCTests, StressTests) {
   LaunchParallelTest(1, DeleteTuple, table);
   auto after_delete = catalog::Manager::GetInstance().GetMemoryFootprint();
   EXPECT_GT(after_insert, before_insert);
-  EXPECT_EQ(after_insert, after_delete);
+  EXPECT_LT(after_insert, after_delete);
   LOG_TRACE("%s",table->GetInfo().c_str());
   // PRIMARY KEY
   std::vector<catalog::Column> columns;
