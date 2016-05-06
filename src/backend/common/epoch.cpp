@@ -24,7 +24,6 @@ void Epoch::AddToPossiblyFreeList(const TupleMetadata tm) {
 
 void Epoch::Join() {
    // We call join from every operation that needs to be performed on the tree.
-  //LOG_DEBUG("The memory usage in epoch join is %lu bytes", catalog::Manager::GetInstance().GetMemoryFootprint());
   ref_count.fetch_add(1);
 }
 

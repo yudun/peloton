@@ -53,7 +53,7 @@ enum GCType {
   GC_TYPE_EPOCH = 3,
 };
 
-#define MAX_TUPLES_PER_GC 1
+#define MAX_TUPLES_PER_GC 1000
 #define MAX_FREE_LIST_LENGTH 1000
 #define MAX_EPOCHS_PER_THREAD 5
 //===--------------------------------------------------------------------===//

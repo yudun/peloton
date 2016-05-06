@@ -2,9 +2,9 @@
 //
 //                         Peloton
 //
-// mutate_test.cpp
+// gc_stress_test_epoch.cpp
 //
-// Identification: tests/executor/gc_basic_test.cpp
+// Identification: tests/executor/gc_stress_test_epoch.cpp
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -120,7 +120,7 @@ void DeleteTuple(storage::DataTable *table) {
   txn_manager.CommitTransaction();
 }
 
-TEST_F(GCTests, DeleteTest) {
+TEST_F(GCTests, StressTests) {
 
   peloton::gc::GCManagerFactory::Configure(type);
   peloton::gc::GCManagerFactory::GetInstance().StartGC();
@@ -132,38 +132,90 @@ TEST_F(GCTests, DeleteTest) {
   db.AddTable(table);
   // We are going to insert a tile group into a table in this test
 
-  auto testing_pool = TestingHarness::GetInstance().GetTestingPool();
-
-  LOG_INFO("The memory usage is %lu bytes", catalog::Manager::GetInstance().GetMemoryFootprint());
-  LaunchParallelTest(1, InsertTuple, table, testing_pool);
-  LOG_INFO("The memory usage is %lu bytes", catalog::Manager::GetInstance().GetMemoryFootprint());
-  LaunchParallelTest(1, DeleteTuple, table);
-  LOG_INFO("The memory usage is %lu bytes", catalog::Manager::GetInstance().GetMemoryFootprint());
-  // LaunchParallelTest(1, InsertTuple, table, testing_pool);
-  LOG_INFO("The memory usage is %lu bytes", catalog::Manager::GetInstance().GetMemoryFootprint());
-
   auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
   auto txn = txn_manager.BeginTransaction();
+
   std::unique_ptr<executor::ExecutorContext> context(
       new executor::ExecutorContext(txn));
-  // Seq scan
-  std::vector<oid_t> column_ids = {0};
-  planner::SeqScanPlan seq_scan_node(table, nullptr, column_ids);
-  executor::SeqScanExecutor seq_scan_executor(&seq_scan_node, context.get());
-  EXPECT_TRUE(seq_scan_executor.Init());
 
-  auto tuple_cnt = 0;
-  while (seq_scan_executor.Execute()) {
-    std::unique_ptr<executor::LogicalTile> result_logical_tile(
-        seq_scan_executor.GetOutput());
-    tuple_cnt += result_logical_tile->GetTupleCount();
+  auto testing_pool = TestingHarness::GetInstance().GetTestingPool();
+
+  // Pass through insert executor.
+  auto null_tuple = ExecutorTestsUtil::GetNullTuple(table, testing_pool);
+
+  planner::InsertPlan node(table, std::move(null_tuple));
+  executor::InsertExecutor executor(&node, context.get());
+
+  try {
+    executor.Execute();
+  } catch (ConstraintException &ce) {
+    LOG_ERROR("%s", ce.what());
   }
+
+  auto non_empty_tuple = ExecutorTestsUtil::GetTuple(table, ++tuple_id, testing_pool);
+  planner::InsertPlan node2(table, std::move(non_empty_tuple));
+  executor::InsertExecutor executor2(&node2, context.get());
+  executor2.Execute();
+
+  try {
+    executor2.Execute();
+  } catch (ConstraintException &ce) {
+    LOG_ERROR("%s", ce.what());
+  }
+
   txn_manager.CommitTransaction();
-  EXPECT_EQ(tuple_cnt, 6);
+  auto before_insert = catalog::Manager::GetInstance().GetMemoryFootprint();
+  LaunchParallelTest(1, InsertTuple, table, testing_pool);
+  LOG_TRACE("%s", table->GetInfo().c_str());
+  auto after_insert = catalog::Manager::GetInstance().GetMemoryFootprint();
+
+  LOG_INFO("---------------------------------------------");
+
+  // LaunchParallelTest(1, UpdateTuple, table);
+  // LOG_TRACE(table->GetInfo().c_str());
+
+  LOG_INFO("---------------------------------------------");
+
+  LaunchParallelTest(1, DeleteTuple, table);
+  auto after_delete = catalog::Manager::GetInstance().GetMemoryFootprint();
+  EXPECT_GT(after_insert, before_insert);
+  EXPECT_EQ(after_insert, after_delete);
+  LOG_TRACE("%s",table->GetInfo().c_str());
+  // PRIMARY KEY
+  std::vector<catalog::Column> columns;
+
+  columns.push_back(ExecutorTestsUtil::GetColumnInfo(0));
+  catalog::Schema *key_schema = new catalog::Schema(columns);
+  storage::Tuple *key1 = new storage::Tuple(key_schema, true);
+  storage::Tuple *key2 = new storage::Tuple(key_schema, true);
+
+  key1->SetValue(0, ValueFactory::GetIntegerValue(10), nullptr);
+  key2->SetValue(0, ValueFactory::GetIntegerValue(100), nullptr);
+
+  delete key1;
+  delete key2;
+  delete key_schema;
+
+  // SEC KEY
+  columns.clear();
+  columns.push_back(ExecutorTestsUtil::GetColumnInfo(0));
+  columns.push_back(ExecutorTestsUtil::GetColumnInfo(1));
+  key_schema = new catalog::Schema(columns);
+
+  storage::Tuple *key3 = new storage::Tuple(key_schema, true);
+  storage::Tuple *key4 = new storage::Tuple(key_schema, true);
+
+  key3->SetValue(0, ValueFactory::GetIntegerValue(10), nullptr);
+  key3->SetValue(1, ValueFactory::GetIntegerValue(11), nullptr);
+  key4->SetValue(0, ValueFactory::GetIntegerValue(100), nullptr);
+  key4->SetValue(1, ValueFactory::GetIntegerValue(101), nullptr);
+
+  delete key3;
+  delete key4;
+  delete key_schema;
 
   tuple_id = 0;
 }
-
 
 }  // namespace test
 }  // namespace peloton
