@@ -205,8 +205,9 @@ ItemPointer DataTable::GetEmptyTupleSlot(const storage::Tuple *tuple,
     AddDefaultTileGroup();
   }
 
-  LOG_TRACE("tile group count: %u, tile group id: %u, address: %p",
-            tile_group_count_, tile_group->GetTileGroupId(), tile_group.get());
+  // FIXME
+  // LOG_TRACE("tile group count: %u, tile group id: %u,  address: %p",
+  //          tile_group_count_, tile_group_id, tile_group.get());
 
   // Set tuple location
   ItemPointer location(tile_group_id, tuple_slot);
@@ -455,6 +456,22 @@ bool DataTable::IsDirty() const { return dirty_; }
  * @brief Reset dirty flag
  */
 void DataTable::ResetDirty() { dirty_ = false; }
+
+
+/**
+ * @brief Return total number of bytes a data table occupies
+ */
+
+uint64_t DataTable::GetMemoryFootprint(const oid_t table_oid) const {
+  uint64_t count = 0;
+  for (size_t i = 0; i < tile_groups_.size(); ++i)
+  {
+    auto tile_group = GetTileGroup(i);
+    size_t recycled_count = gc::GCManagerFactory::GetInstance().GetRecycledTupleSlotCountPerTileGroup(table_oid, i);
+    count += tile_group -> GetMemoryFootprint(recycled_count);
+  }
+  return count;
+}
 
 //===--------------------------------------------------------------------===//
 // TILE GROUP

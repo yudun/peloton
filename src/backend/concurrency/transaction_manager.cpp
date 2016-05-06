@@ -18,6 +18,9 @@ namespace concurrency {
 // Current transaction for the backend thread
 thread_local Transaction *current_txn;
 
+// Current epoch to which the backend thread belongs
+thread_local Epoch *current_epoch;
+
 bool TransactionManager::IsOccupied(const ItemPointer &position) {
   auto tile_group_header =
       catalog::Manager::GetInstance().GetTileGroup(position.block)->GetHeader();

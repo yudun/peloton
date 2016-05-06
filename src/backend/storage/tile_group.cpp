@@ -85,6 +85,18 @@ oid_t TileGroup::GetActiveTupleCount() const {
   return tile_group_header->GetActiveTupleCount();
 }
 
+uint64_t TileGroup::GetMemoryFootprint(const size_t recycled_slot_count) const {
+  uint64_t count = 0;
+  auto allocated = this -> tile_group_header -> GetCurrentNextTupleSlot();
+  for (auto tile : tiles) {
+    if (tile != nullptr)
+    {
+      count += tile -> GetSize(allocated, recycled_slot_count);
+    }
+  }
+  return count;
+}
+
 //===--------------------------------------------------------------------===//
 // Operations
 //===--------------------------------------------------------------------===//

@@ -14,6 +14,8 @@
 
 #include "backend/concurrency/transaction_manager.h"
 #include "backend/storage/tile_group.h"
+#include <boost/container/flat_map.hpp>
+#include <boost/smart_ptr/detail/spinlock.hpp>
 
 namespace peloton {
 namespace concurrency {
@@ -24,7 +26,7 @@ namespace concurrency {
 
 class OptimisticTxnManager : public TransactionManager {
  public:
-  OptimisticTxnManager() : last_epoch_(0) {}
+  OptimisticTxnManager() {}
 
   virtual ~OptimisticTxnManager() {}
 
@@ -68,58 +70,71 @@ class OptimisticTxnManager : public TransactionManager {
 
   virtual Transaction *BeginTransaction() {
     txn_id_t txn_id = GetNextTransactionId();
-    cid_t begin_cid = GetNextCommitId();
+    cid_t begin_cid = INVALID_CID;
+    {
+      std::lock_guard<boost::detail::spinlock> guard(lock);
+      begin_cid = GetNextCommitId();
+      running_txn_buckets_[begin_cid % RUNNING_TXN_BUCKET_NUM][begin_cid] = txn_id;
+    }
+
     Transaction *txn = new Transaction(txn_id, begin_cid);
     current_txn = txn;
+    if(gc::GCManagerFactory::GetGCType() == GC_TYPE_EPOCH) {
+      current_epoch = new Epoch(begin_cid);
 
-    running_txn_buckets_[txn_id % RUNNING_TXN_BUCKET_NUM][txn_id] = begin_cid;
-
+      // current thread joins epoch for executing transaction
+      current_epoch->Join();
+    }
     return txn;
   }
 
   virtual void EndTransaction() {
-    txn_id_t txn_id = current_txn->GetTransactionId();
+    cid_t begin_cid = current_txn->GetBeginCommitId();
+    // order is important - first add to map, then call Leave();
+    if(gc::GCManagerFactory::GetGCType() == GC_TYPE_COOPERATIVE) {
+      gc::GCManagerFactory::GetInstance().PerformGC();
+    } else if (gc::GCManagerFactory::GetGCType() == GC_TYPE_EPOCH) {
+      AddEpochToMap(begin_cid, current_epoch);
+    }
 
-    running_txn_buckets_[txn_id % RUNNING_TXN_BUCKET_NUM].erase(txn_id);
+    {
+      std::lock_guard<boost::detail::spinlock> guard(lock);
+      running_txn_buckets_[begin_cid % RUNNING_TXN_BUCKET_NUM].erase(begin_cid);
+    }
 
+    if (gc::GCManagerFactory::GetGCType() == GC_TYPE_EPOCH) {
+      if(current_epoch->Leave()) {
+        // if Leave() returns true, we can safely delete current_epoch
+        delete current_epoch;
+      }
+    }
+    current_epoch = nullptr;
     delete current_txn;
     current_txn = nullptr;
   }
 
+  // Returns the largest CID committed when this function was called
   virtual cid_t GetMaxCommittedCid() {
-    cid_t curr_epoch = EpochManagerFactory::GetInstance().GetEpoch();
-    
-    if (last_epoch_ != curr_epoch) {  
-      last_epoch_ = curr_epoch;
-
-      cid_t min_running_cid = MAX_CID;
-      for (size_t i = 0; i < RUNNING_TXN_BUCKET_NUM; ++i) {
-        {
-          auto iter = running_txn_buckets_[i].lock_table();
-          for (auto &it : iter) {
-            if (it.second < min_running_cid) {
-              min_running_cid = it.second;
-            }
+    cid_t min_running_cid = MAX_CID;
+    for (size_t i = 0; i < RUNNING_TXN_BUCKET_NUM; ++i) {
+      {
+        std::lock_guard<boost::detail::spinlock> guard(lock);
+        if(running_txn_buckets_[i].size()) {
+          if(running_txn_buckets_[i].begin()->first < min_running_cid) {
+            min_running_cid = running_txn_buckets_[i].begin()->first;
           }
         }
       }
-      assert(min_running_cid > 0);
-      if (min_running_cid != MAX_CID) {
-        last_max_commit_cid_ = min_running_cid - 1;
-      } else {
-      // in this case, there's no running transaction.
-        last_max_commit_cid_ = GetNextCommitId() - 1;
-      }
-
     }
-
-    return last_max_commit_cid_;
+    if(min_running_cid == MAX_CID) {
+      return MAX_CID;
+    }
+    return min_running_cid - 1;
   }
 
  private:
-  cuckoohash_map<txn_id_t, cid_t> running_txn_buckets_[RUNNING_TXN_BUCKET_NUM];
-  cid_t last_epoch_;
-  cid_t last_max_commit_cid_;
+  boost::container::flat_map<txn_id_t, cid_t> running_txn_buckets_[RUNNING_TXN_BUCKET_NUM];
+  boost::detail::spinlock lock;
 };
 }
 }

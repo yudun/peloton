@@ -22,6 +22,7 @@
 #include "backend/common/printable.h"
 #include "backend/common/types.h"
 #include "backend/common/exception.h"
+#include "backend/common/epoch.h"
 
 namespace peloton {
 namespace concurrency {
@@ -45,21 +46,21 @@ class Transaction : public Printable {
   Transaction()
       : txn_id_(INVALID_TXN_ID),
         begin_cid_(INVALID_CID),
-        end_cid_(INVALID_CID),
+        end_cid_(START_CID),
         is_written_(false),
         insert_count_(0) {}
 
   Transaction(const txn_id_t &txn_id)
       : txn_id_(txn_id),
         begin_cid_(INVALID_CID),
-        end_cid_(INVALID_CID),
+        end_cid_(START_CID),
         is_written_(false),
         insert_count_(0) {}
 
   Transaction(const txn_id_t &txn_id, const cid_t &begin_cid)
       : txn_id_(txn_id),
         begin_cid_(begin_cid),
-        end_cid_(INVALID_CID),
+        end_cid_(START_CID),
         is_written_(false),
         insert_count_(0) {}
 

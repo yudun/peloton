@@ -118,7 +118,9 @@ class Tile : public Printable {
   int64_t GetUninlinedDataSize() const { return uninlined_data_size; }
 
   // Both inlined and uninlined data
-  uint32_t GetSize() const { return tile_size + uninlined_data_size; }
+  uint32_t GetSize(size_t allocated, size_t recycled) const {
+    return (allocated - recycled) * tuple_length + uninlined_data_size;
+  }
 
   //===--------------------------------------------------------------------===//
   // Columns

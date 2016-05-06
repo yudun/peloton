@@ -433,13 +433,15 @@ typedef enum GCType
 {
   GC_TYPE_OFF, /* No GC */
   GC_TYPE_VACUUM, /* Periodic vacuuming thread */
-  GC_TYPE_COOPERATIVE /* No separate thread for GC */
+  GC_TYPE_COOPERATIVE, /* No separate thread for GC */
+  GC_TYPE_EPOCH /* Epoch based co-operative GC */
 } GCType;
 
 static const struct config_enum_entry peloton_gc_mode_options[] = {
   {"off", GC_TYPE_OFF, false},
   {"vacuum", GC_TYPE_VACUUM, false},
   {"cooperative", GC_TYPE_COOPERATIVE, false},
+  {"epoch", GC_TYPE_EPOCH, false},
   {NULL, 0, false}
 };
 

@@ -67,6 +67,8 @@ class Database : public Printable {
 
   void UpdateStatsWithOid(const oid_t table_oid) const;
 
+  uint64_t GetMemoryFootprint() const;
+
   //===--------------------------------------------------------------------===//
   // UTILITIES
   //===--------------------------------------------------------------------===//

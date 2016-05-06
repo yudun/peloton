@@ -13,6 +13,7 @@
 #include <cassert>
 
 #include "backend/common/thread_manager.h"
+#include "backend/gc/gc_manager_factory.h"
 
 #define NUM_THREAD 10
 
