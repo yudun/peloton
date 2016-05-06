@@ -29,8 +29,6 @@ namespace gc {
 //===--------------------------------------------------------------------===//
 
 #define MAX_TUPLES_PER_GC 1000
-#define MAX_EPOCHS_PER_THREAD 5
-
 
 class GCManager {
  public:
@@ -39,10 +37,9 @@ class GCManager {
   GCManager(GCManager &&) = delete;
   GCManager &operator=(GCManager &&) = delete;
 
-  GCManager(const GCType type, size_t max_tuples = MAX_TUPLES_PER_GC,
-    size_t max_epochs = MAX_EPOCHS_PER_THREAD) :
+  GCManager(const GCType type, size_t max_tuples = MAX_TUPLES_PER_GC) :
   is_running_(true), gc_type_(type), possibly_free_list_(FREE_LIST_LENGTH),
-  max_tuples_per_gc(max_tuples), max_epochs_per_thread(max_epochs) {}
+  max_tuples_per_gc(max_tuples) {}
 
   ~GCManager() {
     StopGC();
@@ -98,9 +95,6 @@ class GCManager {
 
   // Max tuples to clean in one GC invokation (for vacuum and cooperative modes)
   size_t max_tuples_per_gc;
-
-  // Maximum number of epochs to clean in one GC invokation (for epoch mode)
-  size_t max_epochs_per_thread;
 
 };
 

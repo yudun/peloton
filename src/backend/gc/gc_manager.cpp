@@ -38,15 +38,15 @@ void GCManager::StopGC() {
   this->is_running_ = false;
 }
 
-// Moves tuples from the possibly free list to the actually free list for the 
-// corresponding table and updates the mapping from the table id to the table's 
+// Moves tuples from the possibly free list to the actually free list for the
+// corresponding table and updates the mapping from the table id to the table's
 // free list
 void GCManager::RefurbishTuple(TupleMetadata tuple_metadata) {
   auto &manager = catalog::Manager::GetInstance();
   auto tile_group_header =
     manager.GetTileGroup(tuple_metadata.tile_group_id)->GetHeader();
 
-  // Set the values for the tuple slot such that when this 
+  // Set the values for the tuple slot such that when this
   // can be returned by ReturnFreeSlow and used as a new tuple slot
   // by the calling function
   tile_group_header->SetTransactionId(tuple_metadata.tuple_slot_id,
@@ -69,11 +69,11 @@ void GCManager::RefurbishTuple(TupleMetadata tuple_metadata) {
   } else {
     // if the entry for tuple_metadata.table_id does not exist
 	// create a new free list and initialize its size
-    free_list.second.reset(new LockfreeQueue<TupleMetadata>(MAX_TUPLES_PER_GC));
+    free_list.second.reset(new LockfreeQueue<TupleMetadata>(max_tuples_per_gc));
     free_list.second ->Push(tuple_metadata);
     free_list.first = 1;
   }
-  // Update the map corresponding to the table to now have 
+  // Update the map corresponding to the table to now have
   // the updates list
   free_map_[tuple_metadata.table_id] = free_list;
 }
@@ -96,14 +96,14 @@ void GCManager::PerformGC() {
   if (is_running_ == false) {
     return;
   }
-  // every time we garbage collect at most MAX_TUPLES_PER_GC tuples.
-  for (size_t i = 0; i < MAX_TUPLES_PER_GC; ++i) {
+  // every time we garbage collect at most max_tuples_per_gc tuples.
+  for (size_t i = 0; i < max_tuples_per_gc; ++i) {
     TupleMetadata tuple_metadata;
     // if there's no more tuples in the queue, then break.
     if (possibly_free_list_.Pop(tuple_metadata) == false) {
       break;
     }
-	// if there are no transactions running or if this tuple is not visible to 
+	// if there are no transactions running or if this tuple is not visible to
 	// any of the running transactions
     if (max_cid == MAX_CID || tuple_metadata.tuple_end_cid <= max_cid) {
       RefurbishTuple(tuple_metadata);
@@ -183,7 +183,7 @@ size_t GCManager::GetRefurbishedTupleSlotCountPerTileGroup(const oid_t& table_id
     // if there exists free_list for this table
     if (free_map_.find(table_id, free_list)) {
       size_t size = free_list.first;
-	  // iterate over the free list 
+	  // iterate over the free list
 	  for(unsigned i = 0; i < size; ++i) {
 		// pop the queue and then later push it back
         TupleMetadata tuple_metadata;

@@ -23,7 +23,7 @@ void Epoch::AddToPossiblyFreeList(const TupleMetadata tm) {
   possibly_free_list_.Push(tm);
 }
 
-// Join the epoch, each thread which performs a transaction does this 
+// Join the epoch, each thread which performs a transaction does this
 void Epoch::Join() {
    // increment the count for number of threads in this epoch
   ref_count.fetch_add(1);
@@ -46,16 +46,16 @@ bool Epoch::Leave() {
     // order of fetching smallest_epoch, largest_epoch and max_cid is VERY IMPORTANT
     auto smallest_epoch = txn_manager.GetSmallestEpochCleanedCid();
 	// get the largest epoch that can be cleaned
-    auto largest_epoch = txn_manager.GetCurrentEpochId(); 
+    auto largest_epoch = txn_manager.GetCurrentEpochId();
     auto max_cid = txn_manager.GetMaxCommittedCid();
     if(max_cid == MAX_CID) {
       // no transaction is running, i.e. all epochs until largest epoch can be cleaned
-	  // update the largest epoch according to the MAX_EPOCHS_PER_THREAD
+	  // update the largest epoch according to the max_epochs_per_thread
       assert(largest_epoch >= smallest_epoch);
-      if(largest_epoch - smallest_epoch > MAX_EPOCHS_PER_THREAD) {
-        largest_epoch = smallest_epoch + MAX_EPOCHS_PER_THREAD;
+      if(largest_epoch - smallest_epoch > max_epochs_per_thread) {
+        largest_epoch = smallest_epoch + max_epochs_per_thread;
       }
-	  // Perform CAS on the smallest epoch. This ensures that only one 
+	  // Perform CAS on the smallest epoch. This ensures that only one
 	  // thread (the one that wins the CAS) cleans one epoch
       if(txn_manager.PerformEpochCAS(smallest_epoch, largest_epoch)) {
         // iterate through all the epochs from smallest to largest and clean them
@@ -65,7 +65,7 @@ bool Epoch::Leave() {
             continue;
           }
           gc_manager.PerformGC(e);
-		  // if cleaned some epoch other than self, clean it 
+		  // if cleaned some epoch other than self, clean it
 		  // if cleaned self, signal the calling function (EndTransaction) using retval
 		  // the calling function will delete the epoch in that case
           txn_manager.EraseEpoch(smallest_epoch);
@@ -83,9 +83,9 @@ bool Epoch::Leave() {
     } else if(smallest_epoch != INVALID_CID) {
 	  // There are some running threads, we can clean tuples upto max_cid
       max_cid++;
-	  // adjust max_cid according to MAX_EPOCHS_PER_THREAD
-      if(max_cid - smallest_epoch > MAX_EPOCHS_PER_THREAD) {
-        max_cid = smallest_epoch + MAX_EPOCHS_PER_THREAD;
+	  // adjust max_cid according to max_epochs_per_thread
+      if(max_cid - smallest_epoch > max_epochs_per_thread) {
+        max_cid = smallest_epoch + max_epochs_per_thread;
       }
 	  // perform CAS so that only one thread does this
       if(txn_manager.PerformEpochCAS(smallest_epoch, max_cid)) {
