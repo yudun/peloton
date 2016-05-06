@@ -171,9 +171,6 @@ TEST_F(GCTests, StressTests) {
 
   LOG_INFO("---------------------------------------------");
 
-  // LaunchParallelTest(1, UpdateTuple, table);
-  // LOG_TRACE(table->GetInfo().c_str());
-
   LOG_INFO("---------------------------------------------");
 
   LaunchParallelTest(1, DeleteTuple, table);

@@ -140,7 +140,6 @@ TEST_F(GCTests, DeleteTest) {
   EXPECT_GT(after_insert, before_insert);
   LaunchParallelTest(1, DeleteTuple, table);
   auto after_delete = catalog::Manager::GetInstance().GetMemoryFootprint();
-  // LaunchParallelTest(1, InsertTuple, table, testing_pool);
   EXPECT_EQ(after_insert, after_delete);
   auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
   auto txn = txn_manager.BeginTransaction();

@@ -88,7 +88,7 @@ void GCManager::PerformGC() {
           break;
         }
 
-        if (max_cid == MAX_CID || tuple_metadata.tuple_end_cid < max_cid) {
+        if (max_cid == MAX_CID || tuple_metadata.tuple_end_cid <= max_cid) {
           RefurbishTuple(tuple_metadata);
         } else {
           // if a tuple can't be reaped, add it back to the list.

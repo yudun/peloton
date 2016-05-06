@@ -141,6 +141,7 @@ TEST_F(GCTests, DeleteTest) {
   LaunchParallelTest(1, DeleteTuple, table);
 
   auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
+  LOG_INFO("new transaction");
   auto txn = txn_manager.BeginTransaction();
   std::unique_ptr<executor::ExecutorContext> context(
       new executor::ExecutorContext(txn));
@@ -149,6 +150,7 @@ TEST_F(GCTests, DeleteTest) {
   planner::SeqScanPlan seq_scan_node(table, nullptr, column_ids);
   executor::SeqScanExecutor seq_scan_executor(&seq_scan_node, context.get());
   EXPECT_TRUE(seq_scan_executor.Init());
+
 
   auto tuple_cnt = 0;
   while (seq_scan_executor.Execute()) {
@@ -159,7 +161,6 @@ TEST_F(GCTests, DeleteTest) {
   txn_manager.CommitTransaction();
   EXPECT_EQ(tuple_cnt, 6);
   auto after_delete = catalog::Manager::GetInstance().GetMemoryFootprint();
-  // LaunchParallelTest(1, InsertTuple, table, testing_pool);
   EXPECT_EQ(after_insert, after_delete);
   tuple_id = 0;
 }

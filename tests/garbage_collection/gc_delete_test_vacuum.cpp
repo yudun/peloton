@@ -141,7 +141,6 @@ TEST_F(GCTests, DeleteTest) {
   LaunchParallelTest(1, DeleteTuple, table);
   std::this_thread::sleep_for(std::chrono::seconds(10));
   auto after_delete = catalog::Manager::GetInstance().GetMemoryFootprint();
-  // LaunchParallelTest(1, InsertTuple, table, testing_pool);
   EXPECT_EQ(after_insert, after_delete);
   auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
   auto txn = txn_manager.BeginTransaction();
