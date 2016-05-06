@@ -28,6 +28,9 @@ namespace gc {
 // GC Manager
 //===--------------------------------------------------------------------===//
 
+#define MAX_TUPLES_PER_GC 1000
+#define MAX_EPOCHS_PER_THREAD 5
+
 
 class GCManager {
  public:
@@ -36,7 +39,10 @@ class GCManager {
   GCManager(GCManager &&) = delete;
   GCManager &operator=(GCManager &&) = delete;
 
-  GCManager(const GCType type) : is_running_(true), gc_type_(type), possibly_free_list_(FREE_LIST_LENGTH) {}
+  GCManager(const GCType type, size_t max_tuples = MAX_TUPLES_PER_GC,
+    size_t max_epochs = MAX_EPOCHS_PER_THREAD) :
+  is_running_(true), gc_type_(type), possibly_free_list_(FREE_LIST_LENGTH),
+  max_tuples_per_gc(max_tuples), max_epochs_per_thread(max_epochs) {}
 
   ~GCManager() {
     StopGC();
@@ -57,16 +63,16 @@ class GCManager {
   void StartGC();
   void StopGC();
 
-  // This adds a tuple to the possibly free list 
+  // This adds a tuple to the possibly free list
   void RecycleTupleSlot(const oid_t &table_id, const oid_t &tile_group_id, const oid_t &tuple_id, const cid_t &tuple_end_cid);
-  // Helper function to get the number of tuples refurbished (present in the actually free list) 
+  // Helper function to get the number of tuples refurbished (present in the actually free list)
   size_t GetRefurbishedTupleSlotCountPerTileGroup(const oid_t& table_id, const oid_t& tile_group_id);
 
   // Gets the item pointer for a tuple slot from the actually free list
   ItemPointer ReturnFreeSlot(const oid_t &table_id);
 
  private:
-  // Infinite poll used by the vacuum thread 
+  // Infinite poll used by the vacuum thread
   void Poll();
   // TODO Delete the refurbished tuples from the indexes as well
   void DeleteTupleFromIndexes(const TupleMetadata &);
@@ -76,7 +82,7 @@ class GCManager {
   //===--------------------------------------------------------------------===//
   // Data members
   //===--------------------------------------------------------------------===//
-  
+
   // Is the GC running
   volatile bool is_running_;
   // GC mode
@@ -87,8 +93,15 @@ class GCManager {
   cuckoohash_map<oid_t, std::pair<size_t, std::shared_ptr<LockfreeQueue<TupleMetadata>>>> free_map_;
   // mutex to access the free map
   std::mutex free_map_mutex;
-  // Moves the tuple from possibly free list to the free map 
+  // Moves the tuple from possibly free list to the free map
   void RefurbishTuple(const TupleMetadata tuple_metadata);
+
+  // Max tuples to clean in one GC invokation (for vacuum and cooperative modes)
+  size_t max_tuples_per_gc;
+
+  // Maximum number of epochs to clean in one GC invokation (for epoch mode)
+  size_t max_epochs_per_thread;
+
 };
 
 }  // namespace gc
