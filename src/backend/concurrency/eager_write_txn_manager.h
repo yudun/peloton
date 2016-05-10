@@ -68,20 +68,19 @@ class EagerWriteTxnManager : public TransactionManager {
       const storage::TileGroupHeader *const tile_group_header,
       const oid_t &tile_group_id, const oid_t &tuple_id);
 
-  virtual void SetOwnership(const oid_t &tile_group_id, const oid_t &tuple_id);
-  virtual bool PerformInsert(const oid_t &tile_group_id, const oid_t &tuple_id);
+  virtual bool PerformInsert(const ItemPointer &location);
 
-  virtual bool PerformRead(const oid_t &tile_group_id, const oid_t &tuple_id);
+  virtual bool PerformRead(const ItemPointer &location);
 
-  virtual bool PerformUpdate(const oid_t &tile_group_id, const oid_t &tuple_id,
+  virtual void PerformUpdate(const ItemPointer &old_location,
                              const ItemPointer &new_location);
 
-  virtual bool PerformDelete(const oid_t &tile_group_id, const oid_t &tuple_id,
+  virtual void PerformDelete(const ItemPointer &old_location,
                              const ItemPointer &new_location);
 
-  virtual void PerformUpdate(const oid_t &tile_group_id, const oid_t &tuple_id);
+  virtual void PerformUpdate(const ItemPointer &location);
 
-  virtual void PerformDelete(const oid_t &tile_group_id, const oid_t &tuple_id);
+  virtual void PerformDelete(const ItemPointer &location);
 
   virtual Result CommitTransaction();
 
@@ -162,13 +161,14 @@ class EagerWriteTxnManager : public TransactionManager {
   }
 
  private:
+
   // init reserved area of a tuple
   // creator txnid | lock (for read list) | read list head
   // The txn_id could only be the cur_txn's txn id.
   void InitTupleReserved(const oid_t tile_group_id, const oid_t tuple_id) {
+
     auto tile_group_header = catalog::Manager::GetInstance()
-                                 .GetTileGroup(tile_group_id)
-                                 ->GetHeader();
+        .GetTileGroup(tile_group_id)->GetHeader();
 
     auto reserved_area = tile_group_header->GetReservedFieldRef(tuple_id);
 
@@ -205,14 +205,13 @@ class EagerWriteTxnManager : public TransactionManager {
   void AddReader(storage::TileGroupHeader *tile_group_header,
                  const oid_t &tuple_id) {
     auto txn_id = current_txn->GetTransactionId();
-    LOG_INFO("Add reader %lu, tuple_id = %lu", txn_id, tuple_id);
+    LOG_INFO("Add reader %lu, tuple_id = %u", txn_id, tuple_id);
 
     TxnList *reader = new TxnList(txn_id);
 
     // GetEwReaderLock(tile_group_header, tuple_id);
-    TxnList *headp =
-        (TxnList *)(tile_group_header->GetReservedFieldRef(tuple_id) +
-                    LIST_OFFSET);
+    TxnList *headp = (TxnList *)(
+        tile_group_header->GetReservedFieldRef(tuple_id) + LIST_OFFSET);
     reader->next = headp->next;
     headp->next = reader;
     // ReleaseEwReaderLock(tile_group_header, tuple_id);
@@ -224,9 +223,8 @@ class EagerWriteTxnManager : public TransactionManager {
     LOG_INFO("Remove reader with txn_id = %lu", txn_id);
     GetEwReaderLock(tile_group_header, tuple_id);
 
-    TxnList *headp =
-        (TxnList *)(tile_group_header->GetReservedFieldRef(tuple_id) +
-                    LIST_OFFSET);
+    TxnList *headp = (TxnList *)(
+        tile_group_header->GetReservedFieldRef(tuple_id) + LIST_OFFSET);
 
     auto next = headp->next;
     auto prev = headp;

@@ -83,20 +83,19 @@ class SsiTxnManager : public TransactionManager {
       const storage::TileGroupHeader *const tile_group_header,
       const oid_t &tile_group_id, const oid_t &tuple_id);
 
-  virtual void SetOwnership(const oid_t &tile_group_id, const oid_t &tuple_id);
-  virtual bool PerformInsert(const oid_t &tile_group_id, const oid_t &tuple_id);
+  virtual bool PerformInsert(const ItemPointer &location);
 
-  virtual bool PerformRead(const oid_t &tile_group_id, const oid_t &tuple_id);
+  virtual bool PerformRead(const ItemPointer &location);
 
-  virtual bool PerformUpdate(const oid_t &tile_group_id, const oid_t &tuple_id,
+  virtual void PerformUpdate(const ItemPointer &old_location,
                              const ItemPointer &new_location);
 
-  virtual bool PerformDelete(const oid_t &tile_group_id, const oid_t &tuple_id,
+  virtual void PerformDelete(const ItemPointer &old_location,
                              const ItemPointer &new_location);
 
-  virtual void PerformUpdate(const oid_t &tile_group_id, const oid_t &tuple_id);
+  virtual void PerformUpdate(const ItemPointer &location);
 
-  virtual void PerformDelete(const oid_t &tile_group_id, const oid_t &tuple_id);
+  virtual void PerformDelete(const ItemPointer &location);
 
   virtual Transaction *BeginTransaction() {
     txn_manager_mutex_.WriteLock();
@@ -155,7 +154,7 @@ class SsiTxnManager : public TransactionManager {
   // The txn_id could only be the cur_txn's txn id.
   void InitTupleReserved(const txn_id_t txn_id, const oid_t tile_group_id,
                          const oid_t tuple_id) {
-    LOG_INFO("init reserved txn %ld, group %ld tid %ld", txn_id, tile_group_id,
+    LOG_INFO("init reserved txn %ld, group %u tid %u", txn_id, tile_group_id,
              tuple_id);
 
     auto tile_group_header = catalog::Manager::GetInstance()

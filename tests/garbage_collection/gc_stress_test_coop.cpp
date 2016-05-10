@@ -95,7 +95,7 @@ void DeleteTuple(storage::DataTable *table) {
 
   // WHERE ATTR_0 > 60
   expression::TupleValueExpression *tup_val_exp =
-      new expression::TupleValueExpression(0, 0);
+      new expression::TupleValueExpression(VALUE_TYPE_INTEGER, 0, 0);
   expression::ConstantValueExpression *const_val_exp =
       new expression::ConstantValueExpression(
           ValueFactory::GetIntegerValue(60));

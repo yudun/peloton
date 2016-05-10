@@ -19,6 +19,7 @@
 #include "backend/common/platform.h"
 #include "backend/common/types.h"
 #include "backend/concurrency/transaction.h"
+#include "backend/concurrency/epoch_manager.h"
 #include "backend/storage/data_table.h"
 #include "backend/storage/tile_group.h"
 #include "backend/storage/tile_group_header.h"
@@ -53,6 +54,7 @@ class TransactionManager {
   cid_t GetNextCommitId() { return next_cid_++; }
 
   oid_t GetNextEpochId() { return next_epoch_id_++; }
+  bool IsOccupied(const ItemPointer &position);
 
   virtual bool IsVisible(
       const storage::TileGroupHeader *const tile_group_header,
@@ -129,26 +131,19 @@ class TransactionManager {
       const storage::TileGroupHeader *const tile_group_header,
       const oid_t &tile_group_id, const oid_t &tuple_id) = 0;
 
-  virtual void SetOwnership(const oid_t &tile_group_id,
-                            const oid_t &tuple_id) = 0;
+  virtual bool PerformInsert(const ItemPointer &location) = 0;
 
-  virtual bool PerformInsert(const oid_t &tile_group_id,
-                             const oid_t &tuple_id) = 0;
+  virtual bool PerformRead(const ItemPointer &location) = 0;
 
-  virtual bool PerformRead(const oid_t &tile_group_id,
-                           const oid_t &tuple_id) = 0;
-
-  virtual bool PerformUpdate(const oid_t &tile_group_id, const oid_t &tuple_id,
+  virtual void PerformUpdate(const ItemPointer &old_location,
                              const ItemPointer &new_location) = 0;
 
-  virtual bool PerformDelete(const oid_t &tile_group_id, const oid_t &tuple_id,
+  virtual void PerformDelete(const ItemPointer &old_location,
                              const ItemPointer &new_location) = 0;
 
-  virtual void PerformUpdate(const oid_t &tile_group_id,
-                             const oid_t &tuple_id) = 0;
+  virtual void PerformUpdate(const ItemPointer &location) = 0;
 
-  virtual void PerformDelete(const oid_t &tile_group_id,
-                             const oid_t &tuple_id) = 0;
+  virtual void PerformDelete(const ItemPointer &location) = 0;
 
   /*
    * Write a virtual function to push deleted and verified (acc to optimistic

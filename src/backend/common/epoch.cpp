@@ -20,7 +20,7 @@ namespace peloton {
 
 // Add the tuple to the epoch's possibly free list
 void Epoch::AddToPossiblyFreeList(const TupleMetadata tm) {
-  possibly_free_list_.Push(tm);
+  possibly_free_list_.TryPush(tm);
 }
 
 // Join the epoch, each thread which performs a transaction does this

@@ -52,8 +52,10 @@ class JoinTests : public PelotonTest {};
 
 std::vector<planner::MergeJoinPlan::JoinClause> CreateJoinClauses() {
   std::vector<planner::MergeJoinPlan::JoinClause> join_clauses;
-  auto left = expression::ExpressionUtil::TupleValueFactory(0, 1);
-  auto right = expression::ExpressionUtil::TupleValueFactory(1, 1);
+  auto left = expression::ExpressionUtil::TupleValueFactory(
+      VALUE_TYPE_INTEGER, 0, 1);
+  auto right = expression::ExpressionUtil::TupleValueFactory(
+      VALUE_TYPE_INTEGER, 1, 1);
   bool reversed = false;
   join_clauses.emplace_back(left, right, reversed);
   return join_clauses;
@@ -180,7 +182,7 @@ TEST_F(JoinTests, JoinPredicateTest) {
   // Go over all join test types
   for (oid_t join_test_type = 0; join_test_type < join_test_types;
        join_test_type++) {
-    LOG_INFO("JOIN TEST_F ------------------------ :: %lu", join_test_type);
+    LOG_INFO("JOIN TEST_F ------------------------ :: %u", join_test_type);
 
     // Go over all join algorithms
     for (auto join_algorithm : join_algorithms) {
@@ -218,20 +220,20 @@ void ExecuteJoinTest(PlanNodeType join_algorithm, PelotonJoinType join_type,
   size_t right_table_tile_group_count = 2;
 
   auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
-  auto txn = txn_manager.BeginTransaction();
+  txn_manager.BeginTransaction();
 
   // Left table has 3 tile groups
   std::unique_ptr<storage::DataTable> left_table(
       ExecutorTestsUtil::CreateTable(tile_group_size));
   ExecutorTestsUtil::PopulateTable(
-      txn, left_table.get(), tile_group_size * left_table_tile_group_count,
+      left_table.get(), tile_group_size * left_table_tile_group_count,
       false, false, false);
 
   // Right table has 2 tile groups
   std::unique_ptr<storage::DataTable> right_table(
       ExecutorTestsUtil::CreateTable(tile_group_size));
   ExecutorTestsUtil::PopulateTable(
-      txn, right_table.get(), tile_group_size * right_table_tile_group_count,
+      right_table.get(), tile_group_size * right_table_tile_group_count,
       false, false, false);
 
   txn_manager.CommitTransaction();
@@ -442,11 +444,21 @@ void ExecuteJoinTest(PlanNodeType join_algorithm, PelotonJoinType join_type,
     case PLAN_NODE_TYPE_HASHJOIN: {
       // Create hash plan node
       expression::AbstractExpression *right_table_attr_1 =
-          new expression::TupleValueExpression(1, 1);
+          new expression::TupleValueExpression(VALUE_TYPE_INTEGER, 1, 1);
 
       std::vector<std::unique_ptr<const expression::AbstractExpression>>
           hash_keys;
       hash_keys.emplace_back(right_table_attr_1);
+
+      std::vector<std::unique_ptr<const expression::AbstractExpression>>
+          left_hash_keys;
+      left_hash_keys.emplace_back(std::unique_ptr<expression::AbstractExpression>{
+          new expression::TupleValueExpression(VALUE_TYPE_INTEGER, 0, 1)});
+
+      std::vector<std::unique_ptr<const expression::AbstractExpression>>
+          right_hash_keys;
+      right_hash_keys.emplace_back(std::unique_ptr<expression::AbstractExpression>{
+          new expression::TupleValueExpression(VALUE_TYPE_INTEGER, 1, 1)});
 
       // Create hash plan node
       planner::HashPlan hash_plan_node(hash_keys);

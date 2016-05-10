@@ -49,11 +49,11 @@ TEST_F(AggregateTests, SortedDistinctTest) {
 
   // Create a table and wrap it in logical tiles
   auto& txn_manager = concurrency::TransactionManagerFactory::GetInstance();
-  auto txn = txn_manager.BeginTransaction();
+  txn_manager.BeginTransaction();
 
   std::unique_ptr<storage::DataTable> data_table(
       ExecutorTestsUtil::CreateTable(tuple_count, false));
-  ExecutorTestsUtil::PopulateTable(txn, data_table.get(), 2 * tuple_count,
+  ExecutorTestsUtil::PopulateTable(data_table.get(), 2 * tuple_count,
                                    false, false, true);
   txn_manager.CommitTransaction();
 
@@ -147,11 +147,11 @@ TEST_F(AggregateTests, SortedSumGroupByTest) {
 
   // Create a table and wrap it in logical tiles
   auto& txn_manager = concurrency::TransactionManagerFactory::GetInstance();
-  auto txn = txn_manager.BeginTransaction();
+  txn_manager.BeginTransaction();
 
   std::unique_ptr<storage::DataTable> data_table(
       ExecutorTestsUtil::CreateTable(tuple_count, false));
-  ExecutorTestsUtil::PopulateTable(txn, data_table.get(), 2 * tuple_count,
+  ExecutorTestsUtil::PopulateTable(data_table.get(), 2 * tuple_count,
                                    false, false, true);
   txn_manager.CommitTransaction();
 
@@ -178,7 +178,7 @@ TEST_F(AggregateTests, SortedSumGroupByTest) {
   std::vector<planner::AggregatePlan::AggTerm> agg_terms;
   planner::AggregatePlan::AggTerm sumb(
       EXPRESSION_TYPE_AGGREGATE_SUM,
-      expression::ExpressionUtil::TupleValueFactory(0, 1));
+      expression::ExpressionUtil::TupleValueFactory(VALUE_TYPE_INTEGER, 0, 1));
   agg_terms.push_back(sumb);
 
   // 4) Set up predicate (empty)
@@ -251,11 +251,11 @@ TEST_F(AggregateTests, SortedSumMaxGroupByTest) {
 
   // Create a table and wrap it in logical tiles
   auto& txn_manager = concurrency::TransactionManagerFactory::GetInstance();
-  auto txn = txn_manager.BeginTransaction();
+  txn_manager.BeginTransaction();
   std::unique_ptr<storage::DataTable> data_table(
       ExecutorTestsUtil::CreateTable(tuple_count, false));
 
-  ExecutorTestsUtil::PopulateTable(txn, data_table.get(), 2 * tuple_count,
+  ExecutorTestsUtil::PopulateTable(data_table.get(), 2 * tuple_count,
                                    false, false, true);
   txn_manager.CommitTransaction();
 
@@ -282,10 +282,10 @@ TEST_F(AggregateTests, SortedSumMaxGroupByTest) {
   std::vector<planner::AggregatePlan::AggTerm> agg_terms;
   planner::AggregatePlan::AggTerm sumb(
       EXPRESSION_TYPE_AGGREGATE_SUM,
-      expression::ExpressionUtil::TupleValueFactory(0, 1));
+      expression::ExpressionUtil::TupleValueFactory(VALUE_TYPE_INTEGER, 0, 1));
   planner::AggregatePlan::AggTerm maxc(
       EXPRESSION_TYPE_AGGREGATE_MAX,
-      expression::ExpressionUtil::TupleValueFactory(0, 2));
+      expression::ExpressionUtil::TupleValueFactory(VALUE_TYPE_DOUBLE, 0, 2));
   agg_terms.push_back(sumb);
   agg_terms.push_back(maxc);
 
@@ -360,10 +360,10 @@ TEST_F(AggregateTests, HashDistinctTest) {
 
   // Create a table and wrap it in logical tiles
   auto& txn_manager = concurrency::TransactionManagerFactory::GetInstance();
-  auto txn = txn_manager.BeginTransaction();
+  txn_manager.BeginTransaction();
   std::unique_ptr<storage::DataTable> data_table(
       ExecutorTestsUtil::CreateTable(tuple_count, false));
-  ExecutorTestsUtil::PopulateTable(txn, data_table.get(), 2 * tuple_count,
+  ExecutorTestsUtil::PopulateTable(data_table.get(), 2 * tuple_count,
                                    false, true,
                                    true);  // let it be random
   txn_manager.CommitTransaction();
@@ -451,10 +451,10 @@ TEST_F(AggregateTests, HashSumGroupByTest) {
 
   // Create a table and wrap it in logical tiles
   auto& txn_manager = concurrency::TransactionManagerFactory::GetInstance();
-  auto txn = txn_manager.BeginTransaction();
+  txn_manager.BeginTransaction();
   std::unique_ptr<storage::DataTable> data_table(
       ExecutorTestsUtil::CreateTable(tuple_count, false));
-  ExecutorTestsUtil::PopulateTable(txn, data_table.get(), 2 * tuple_count,
+  ExecutorTestsUtil::PopulateTable(data_table.get(), 2 * tuple_count,
                                    false, true, true);
   txn_manager.CommitTransaction();
 
@@ -481,7 +481,7 @@ TEST_F(AggregateTests, HashSumGroupByTest) {
   std::vector<planner::AggregatePlan::AggTerm> agg_terms;
   planner::AggregatePlan::AggTerm sumC(
       EXPRESSION_TYPE_AGGREGATE_SUM,
-      expression::ExpressionUtil::TupleValueFactory(0, 2));
+      expression::ExpressionUtil::TupleValueFactory(VALUE_TYPE_DOUBLE, 0, 2));
   agg_terms.push_back(sumC);
 
   // 4) Set up predicate (empty)
@@ -542,11 +542,11 @@ TEST_F(AggregateTests, HashCountDistinctGroupByTest) {
 
   // Create a table and wrap it in logical tiles
   auto& txn_manager = concurrency::TransactionManagerFactory::GetInstance();
-  auto txn = txn_manager.BeginTransaction();
+  txn_manager.BeginTransaction();
 
   std::unique_ptr<storage::DataTable> data_table(
       ExecutorTestsUtil::CreateTable(tuple_count, false));
-  ExecutorTestsUtil::PopulateTable(txn, data_table.get(), 2 * tuple_count,
+  ExecutorTestsUtil::PopulateTable(data_table.get(), 2 * tuple_count,
                                    false, true, true);
   txn_manager.CommitTransaction();
 
@@ -573,11 +573,11 @@ TEST_F(AggregateTests, HashCountDistinctGroupByTest) {
   std::vector<planner::AggregatePlan::AggTerm> agg_terms;
   planner::AggregatePlan::AggTerm countB(
       EXPRESSION_TYPE_AGGREGATE_COUNT,
-      expression::ExpressionUtil::TupleValueFactory(0, 1),
+      expression::ExpressionUtil::TupleValueFactory(VALUE_TYPE_INTEGER, 0, 1),
       false);  // Flag distinct
   planner::AggregatePlan::AggTerm countDistinctB(
       EXPRESSION_TYPE_AGGREGATE_COUNT,
-      expression::ExpressionUtil::TupleValueFactory(0, 1),
+      expression::ExpressionUtil::TupleValueFactory(VALUE_TYPE_INTEGER, 0, 1),
       true);  // Flag distinct
   agg_terms.push_back(countB);
   agg_terms.push_back(countDistinctB);
@@ -652,11 +652,11 @@ TEST_F(AggregateTests, PlainSumCountDistinctTest) {
 
   // Create a table and wrap it in logical tiles
   auto& txn_manager = concurrency::TransactionManagerFactory::GetInstance();
-  auto txn = txn_manager.BeginTransaction();
+  txn_manager.BeginTransaction();
 
   std::unique_ptr<storage::DataTable> data_table(
       ExecutorTestsUtil::CreateTable(tuple_count, false));
-  ExecutorTestsUtil::PopulateTable(txn, data_table.get(), 2 * tuple_count,
+  ExecutorTestsUtil::PopulateTable(data_table.get(), 2 * tuple_count,
                                    false, true, true);
   txn_manager.CommitTransaction();
 
@@ -683,14 +683,15 @@ TEST_F(AggregateTests, PlainSumCountDistinctTest) {
   std::vector<planner::AggregatePlan::AggTerm> agg_terms;
   planner::AggregatePlan::AggTerm sumA(
       EXPRESSION_TYPE_AGGREGATE_SUM,
-      expression::ExpressionUtil::TupleValueFactory(0, 0), false);
+      expression::ExpressionUtil::TupleValueFactory(VALUE_TYPE_INTEGER, 0, 0),
+      false);
   planner::AggregatePlan::AggTerm countB(
       EXPRESSION_TYPE_AGGREGATE_COUNT,
-      expression::ExpressionUtil::TupleValueFactory(0, 1),
+      expression::ExpressionUtil::TupleValueFactory(VALUE_TYPE_INTEGER, 0, 1),
       false);  // Flag distinct
   planner::AggregatePlan::AggTerm countDistinctB(
       EXPRESSION_TYPE_AGGREGATE_COUNT,
-      expression::ExpressionUtil::TupleValueFactory(0, 1),
+      expression::ExpressionUtil::TupleValueFactory(VALUE_TYPE_INTEGER, 0, 1),
       true);  // Flag distinct
   agg_terms.push_back(sumA);
   agg_terms.push_back(countB);

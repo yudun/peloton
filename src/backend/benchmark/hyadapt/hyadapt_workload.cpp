@@ -90,7 +90,7 @@ expression::AbstractExpression *CreatePredicate(const int lower_bound) {
 
   // First, create tuple value expression.
   expression::AbstractExpression *tuple_value_expr =
-      expression::ExpressionUtil::TupleValueFactory(0, 0);
+      expression::ExpressionUtil::TupleValueFactory(VALUE_TYPE_INTEGER, 0, 0);
 
   // Second, create constant value expression.
   Value constant_value = ValueFactory::GetIntegerValue(lower_bound);
@@ -399,7 +399,8 @@ void RunAggregateTest() {
   for (auto column_id : column_ids) {
     planner::AggregatePlan::AggTerm max_column_agg(
         EXPRESSION_TYPE_AGGREGATE_MAX,
-        expression::ExpressionUtil::TupleValueFactory(0, column_id), false);
+        expression::ExpressionUtil::TupleValueFactory(VALUE_TYPE_INTEGER, 0,
+                                                      column_id), false);
     agg_terms.push_back(max_column_agg);
   }
 
@@ -550,13 +551,14 @@ void RunArithmeticTest() {
 
   for (oid_t col_itr = 0; col_itr < projection_column_count; col_itr++) {
     auto hyadapt_colum_id = hyadapt_column_ids[col_itr];
-    auto column_expr =
-        expression::ExpressionUtil::TupleValueFactory(0, hyadapt_colum_id);
+    auto column_expr = expression::ExpressionUtil::TupleValueFactory(
+        VALUE_TYPE_INTEGER, 0, hyadapt_colum_id);
     if (sum_expr == nullptr)
       sum_expr = column_expr;
     else {
       sum_expr = expression::ExpressionUtil::OperatorFactory(
-          EXPRESSION_TYPE_OPERATOR_PLUS, sum_expr, column_expr);
+          EXPRESSION_TYPE_OPERATOR_PLUS, VALUE_TYPE_INTEGER, sum_expr,
+          column_expr);
     }
   }
 
@@ -1830,7 +1832,7 @@ void RunVersionExperiment() {
   for (auto version_chain_length : version_chain_lengths) {
     oid_t starting_tuple_offset = version_chain_length - 1;
     oid_t prev_tuple_offset = starting_tuple_offset;
-    LOG_INFO("Offset : %lu", starting_tuple_offset);
+    LOG_INFO("Offset : %u", starting_tuple_offset);
 
     auto prev_item_pointer = header->GetNextItemPointer(starting_tuple_offset);
     while (prev_item_pointer.block != INVALID_OID) {
@@ -2142,8 +2144,8 @@ void RunConcurrencyExperiment() {
 
         LOG_INFO("Inserted Tile Group Count : %lu", diff_tg_count);
 
-        LOG_INFO("Scan count  : %lu", scan_ctr);
-        LOG_INFO("Insert count  : %lu", insert_ctr);
+        LOG_INFO("Scan count  : %u", scan_ctr);
+        LOG_INFO("Insert count  : %u", insert_ctr);
       }
     }
   }

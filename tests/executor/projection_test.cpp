@@ -61,10 +61,10 @@ TEST_F(ProjectionTests, BasicTest) {
 
   // Create a table and wrap it in logical tile
   auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
-  auto txn = txn_manager.BeginTransaction();
+  txn_manager.BeginTransaction();
   std::unique_ptr<storage::DataTable> data_table(
       ExecutorTestsUtil::CreateTable(tile_size));
-  ExecutorTestsUtil::PopulateTable(txn, data_table.get(), tile_size, false,
+  ExecutorTestsUtil::PopulateTable(data_table.get(), tile_size, false,
                                    false, false);
   txn_manager.CommitTransaction();
 
@@ -119,10 +119,10 @@ TEST_F(ProjectionTests, TwoColumnTest) {
 
   // Create a table and wrap it in logical tile
   auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
-  auto txn = txn_manager.BeginTransaction();
+  txn_manager.BeginTransaction();
   std::unique_ptr<storage::DataTable> data_table(
       ExecutorTestsUtil::CreateTable(tile_size));
-  ExecutorTestsUtil::PopulateTable(txn, data_table.get(), tile_size, false,
+  ExecutorTestsUtil::PopulateTable(data_table.get(), tile_size, false,
                                    false, false);
   txn_manager.CommitTransaction();
 
@@ -185,10 +185,10 @@ TEST_F(ProjectionTests, BasicTargetTest) {
 
   // Create a table and wrap it in logical tile
   auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
-  auto txn = txn_manager.BeginTransaction();
+  txn_manager.BeginTransaction();
   std::unique_ptr<storage::DataTable> data_table(
       ExecutorTestsUtil::CreateTable(tile_size));
-  ExecutorTestsUtil::PopulateTable(txn, data_table.get(), tile_size, false,
+  ExecutorTestsUtil::PopulateTable(data_table.get(), tile_size, false,
                                    false, false);
   txn_manager.CommitTransaction();
 
@@ -221,9 +221,11 @@ TEST_F(ProjectionTests, BasicTargetTest) {
   // target list
   auto const_val = new expression::ConstantValueExpression(
       ValueFactory::GetIntegerValue(20));
-  auto tuple_value_expr = expression::ExpressionUtil::TupleValueFactory(0, 0);
+  auto tuple_value_expr = expression::ExpressionUtil::TupleValueFactory(
+      VALUE_TYPE_INTEGER, 0, 0);
   expression::AbstractExpression *expr =
       expression::ExpressionUtil::OperatorFactory(EXPRESSION_TYPE_OPERATOR_PLUS,
+                                                  VALUE_TYPE_INTEGER,
                                                   tuple_value_expr, const_val);
 
   planner::ProjectInfo::Target target = std::make_pair(1, expr);
