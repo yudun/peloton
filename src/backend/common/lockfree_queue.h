@@ -15,6 +15,7 @@
 #include "concurrentqueue.h"
 #include <xmmintrin.h>
 
+
 namespace peloton {
 
 //===--------------------------------------------------------------------===//

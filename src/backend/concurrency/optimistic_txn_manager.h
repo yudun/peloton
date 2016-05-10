@@ -91,6 +91,7 @@ class OptimisticTxnManager : public TransactionManager {
     cid_t begin_cid = current_txn->GetBeginCommitId();
     if (gc::GCManagerFactory::GetGCType() == GC_TYPE_COOPERATIVE) {
       // If cooperative mode, then just call perform GC
+	  LOG_INFO("====\nCallingPerformGC\n====");
       gc::GCManagerFactory::GetInstance().PerformGC();
     } else if (gc::GCManagerFactory::GetGCType() == GC_TYPE_EPOCH) {
       // order is important - first add to map, then call Leave();
