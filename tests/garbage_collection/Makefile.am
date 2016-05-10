@@ -4,12 +4,21 @@
 # EXECUTOR
 ######################################################################
 
-check_PROGRAMS += gc_update_test_vacuum gc_update_test_coop gc_update_test_epoch \
-				gc_delete_test_vacuum gc_delete_test_coop gc_delete_test_epoch \
+check_PROGRAMS += gc_update_test gc_delete_test\
 				gc_stress_test_vacuum gc_stress_test_coop gc_stress_test_epoch
+				gc_update_test_vacuum gc_update_test_coop gc_update_test_epoch
+				gc_delete_test_vacuum gc_delete_test_coop gc_delete_test_epoch
 
 executor_tests_common= 	executor/executor_tests_util.cpp \
 						harness.cpp
+
+gc_update_test_SOURCES = \
+						$(executor_tests_common) \
+						garbage_collection/gc_update_test.cpp
+
+gc_delete_test_SOURCES = \
+						$(executor_tests_common) \
+						garbage_collection/gc_delete_test.cpp
 
 gc_update_test_vacuum_SOURCES = \
 						$(executor_tests_common) \
