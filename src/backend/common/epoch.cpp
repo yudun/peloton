@@ -57,33 +57,7 @@ bool Epoch::Leave() {
       if (largest_epoch - smallest_epoch > max_epochs_per_thread) {
         largest_epoch = smallest_epoch + max_epochs_per_thread;
       }
-      // Perform CAS on the smallest epoch. This ensures that only one
-      // thread (the one that wins the CAS) cleans one epoch
-      if (txn_manager.PerformEpochCAS(smallest_epoch, largest_epoch)) {
-        // iterate through all the epochs from smallest to largest and clean
-        // them
-        for (; smallest_epoch < largest_epoch; smallest_epoch++) {
-          Epoch *e = txn_manager.GetEpoch(smallest_epoch);
-          if (e == nullptr) {
-            continue;
-          }
-          gc_manager.PerformGC(e);
-          // if cleaned some epoch other than self, clean it
-          // if cleaned self, signal the calling function (EndTransaction) using
-          // retval
-          // the calling function will delete the epoch in that case
-          txn_manager.EraseEpoch(smallest_epoch);
-          if (e != this) {
-            delete e;
-          } else {
-            retval = true;
-          }
-        }
-        return retval;
-      } else {
-        // lost the CAS, simply return
-        return retval;
-      }
+      return GCHelper(smallest_epoch, largest_epoch);
     } else if (smallest_epoch != INVALID_CID) {
       // There are some running threads, we can clean tuples upto max_cid
       max_cid++;
@@ -91,33 +65,45 @@ bool Epoch::Leave() {
       if (max_cid - smallest_epoch > max_epochs_per_thread) {
         max_cid = smallest_epoch + max_epochs_per_thread;
       }
-      // perform CAS so that only one thread does this
-      if (txn_manager.PerformEpochCAS(smallest_epoch, max_cid)) {
-        assert(max_cid >= smallest_epoch);
-        // clean the epochs from [smallest_epoch, max_cid), because we
-        // incremented max_cid above
-        for (; smallest_epoch < max_cid; smallest_epoch++) {
-          Epoch *e = txn_manager.GetEpoch(smallest_epoch);
-          if (e == nullptr) {
-            continue;
-          }
-          // perform GC of this epoch's possibly free list
-          gc_manager.PerformGC(e);
-          txn_manager.EraseEpoch(smallest_epoch);
-          if (e != this) {
-            // delete self reference afterwards, handled by setting the retval
-            delete e;
-          } else {
-            retval = true;
-          }
-        }
-        return retval;
-      } else {
-        return retval;
-      }
+      return GCHelper(smallest_epoch, max_cid);
     }
   }
   return retval;
+}
+
+// Helper Function for cleaning from @param clean_from_epoch to @param
+// clean_till_epoch
+bool Epoch::GCHelper(oid_t clean_from_epoch, oid_t clean_till_epoch) {
+  bool retval = false;
+  auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
+  auto &gc_manager = gc::GCManagerFactory::GetInstance();
+  // Perform CAS on the smallest epoch. This ensures that only one
+  // thread (the one that wins the CAS) cleans one epoch
+  if (txn_manager.PerformEpochCAS(clean_from_epoch, clean_till_epoch)) {
+    // iterate through all the epochs from smallest to largest and clean
+    // them
+    for (; clean_from_epoch < clean_till_epoch; clean_from_epoch++) {
+      Epoch *e = txn_manager.GetEpoch(clean_from_epoch);
+      if (e == nullptr) {
+        continue;
+      }
+      gc_manager.PerformGC(e);
+      // if cleaned some epoch other than self, clean it
+      // if cleaned self, signal the calling function (EndTransaction) using
+      // retval
+      // the calling function will delete the epoch in that case
+      txn_manager.EraseEpoch(clean_from_epoch);
+      if (e != this) {
+        delete e;
+      } else {
+        retval = true;
+      }
+    }
+    return retval;
+  } else {
+    // lost the CAS, simply return
+    return retval;
+  }
 }
 
 }  // namespace peloton

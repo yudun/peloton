@@ -755,10 +755,20 @@ static const cid_t MAX_CID = std::numeric_limits<cid_t>::max();
 // TupleMetadata
 //===--------------------------------------------------------------------===//
 struct TupleMetadata {
-  oid_t table_id = 0;
-  oid_t tile_group_id = 0;
-  oid_t tuple_slot_id = 0;
-  cid_t tuple_end_cid = 0;
+  oid_t table_id;
+  oid_t tile_group_id;
+  oid_t tuple_slot_id;
+  cid_t tuple_end_cid;
+
+  TupleMetadata()
+      : table_id(0), tile_group_id(0), tuple_slot_id(0), tuple_end_cid(0) {}
+
+  TupleMetadata(oid_t table_id, oid_t tile_group_id, oid_t tuple_slot_id,
+                cid_t tuple_end_cid)
+      : table_id(table_id),
+        tile_group_id(tile_group_id),
+        tuple_slot_id(tuple_slot_id),
+        tuple_end_cid(tuple_end_cid) {}
 };
 
 //===--------------------------------------------------------------------===//
@@ -777,8 +787,8 @@ struct ItemPointer {
 
   ItemPointer(oid_t block, oid_t offset) : block(block), offset(offset) {}
 
-  bool IsNull() const { 
-    return (block == INVALID_OID && offset == INVALID_OID); 
+  bool IsNull() const {
+    return (block == INVALID_OID && offset == INVALID_OID);
   }
 
 } __attribute__((__aligned__(8))) __attribute__((__packed__));
@@ -808,7 +818,7 @@ bool IsBasedOnWriteBehindLogging(const LoggingType& logging_type);
 
 BackendType GetBackendType(const LoggingType& logging_type);
 
-void AtomicUpdateItemPointer(ItemPointer *src_ptr, const ItemPointer &value);
+void AtomicUpdateItemPointer(ItemPointer* src_ptr, const ItemPointer& value);
 
 //===--------------------------------------------------------------------===//
 // Transformers

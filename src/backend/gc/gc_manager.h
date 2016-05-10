@@ -29,6 +29,7 @@ namespace gc {
 //===--------------------------------------------------------------------===//
 
 #define MAX_TUPLES_PER_GC 1000
+#define VACUUM_THREAD_SLEEP_TIME 5
 
 class GCManager {
  public:
@@ -37,11 +38,13 @@ class GCManager {
   GCManager(GCManager &&) = delete;
   GCManager &operator=(GCManager &&) = delete;
 
-  GCManager(const GCType type, size_t max_tuples = MAX_TUPLES_PER_GC)
+  GCManager(const GCType type, size_t max_tuples = MAX_TUPLES_PER_GC,
+            unsigned int sleep_time_ = VACUUM_THREAD_SLEEP_TIME)
       : is_running_(true),
         gc_type_(type),
         possibly_free_list_(FREE_LIST_LENGTH),
-        max_tuples_per_gc(max_tuples) {}
+        max_tuples_per_gc(max_tuples),
+        vacuum_thread_sleep_time_(sleep_time_) {}
 
   ~GCManager() { StopGC(); }
 
@@ -51,6 +54,13 @@ class GCManager {
   // Get GCType
   GCType GetGCType() { return this->gc_type_; }
   void SetGCType(GCType gc_type) { this->gc_type_ = gc_type; }
+  // Get and Set Sleep Time for vacuum thread
+  unsigned int GetVacuumThreadSleepTime() {
+    return this->vacuum_thread_sleep_time_;
+  }
+  void SetVacuumThreadSleepTime(unsigned int sleep_time) {
+    this->vacuum_thread_sleep_time_ = sleep_time;
+  }
 
   // PerformGC function used by vacuum and cooperative mode. Uses global
   // possibly and actual free list
@@ -103,6 +113,8 @@ class GCManager {
 
   // Max tuples to clean in one GC invokation (for vacuum and cooperative modes)
   size_t max_tuples_per_gc;
+  // Seconds to sleep for the vacuum thread
+  unsigned int vacuum_thread_sleep_time_;
 };
 
 }  // namespace gc

@@ -43,6 +43,8 @@ class Epoch {
  private:
   // epoch generation id
   oid_t id_;
+  // Helper fucntion to clean epochs
+  bool GCHelper(oid_t clean_from_epoch, oid_t clean_till_epoch);
 
   // Maximum number of epochs to clean in one GC invokation (for epoch mode)
   size_t max_epochs_per_thread;

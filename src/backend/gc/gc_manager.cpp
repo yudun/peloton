@@ -45,6 +45,7 @@ void GCManager::RefurbishTuple(TupleMetadata tuple_metadata) {
   auto tile_group_header =
       manager.GetTileGroup(tuple_metadata.tile_group_id)->GetHeader();
 
+  LOG_INFO("Refurbishing %u\n", tuple_metadata.tuple_slot_id);
   // Set the values for the tuple slot such that when this
   // can be returned by ReturnFreeSlow and used as a new tuple slot
   // by the calling function
@@ -114,8 +115,10 @@ void GCManager::PerformGC() {
 void GCManager::Poll() {
   // Loop infinitely and perform GC
   while (1) {
+    if (!this->is_running_) break;
     PerformGC();
-    std::this_thread::sleep_for(std::chrono::seconds(5));
+    std::this_thread::sleep_for(
+        std::chrono::seconds(vacuum_thread_sleep_time_));
   }
 }
 
@@ -127,13 +130,9 @@ void GCManager::RecycleTupleSlot(const oid_t &table_id,
   if (this->gc_type_ == GC_TYPE_OFF) {
     return;
   }
-  // TryPopulate the tuple metadata structure
-  TupleMetadata tuple_metadata;
-  tuple_metadata.table_id = table_id;
-  tuple_metadata.tile_group_id = tile_group_id;
-  tuple_metadata.tuple_slot_id = tuple_id;
-  tuple_metadata.tuple_end_cid = tuple_end_cid;
-
+  // Populate the tuple metadata structure
+  TupleMetadata tuple_metadata(table_id, tile_group_id, tuple_id,
+                               tuple_end_cid);
   // if epoch scheme, then add to the epoch specific possibly free list
   // else add to the global possibly free list
   if (this->gc_type_ == GC_TYPE_EPOCH) {
