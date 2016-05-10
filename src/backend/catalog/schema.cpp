@@ -254,9 +254,8 @@ bool Schema::operator==(const Schema &other) const {
 
 bool Schema::operator!=(const Schema &other) const { return !(*this == other); }
 
-
+// Drop a not null constraints in this schema given a constriant object
 bool Schema::DropNotNull(Constraint constraint)  {
-
   oid_t total_column = GetColumnCount();
   for (oid_t column_itr = 0; column_itr < total_column; column_itr++) {
     std::vector<catalog::Constraint>& cons = columns[column_itr].constraints;
@@ -271,10 +270,9 @@ bool Schema::DropNotNull(Constraint constraint)  {
     }
   }
   return false;
-
-
 }
 
+// Set not null constraints in this schema given a constriant object
 bool Schema::SetNotNull(Constraint constraint){
   LOG_INFO("Schema::SetNotNull");
   oid_t total_column = GetColumnCount();
@@ -289,8 +287,8 @@ bool Schema::SetNotNull(Constraint constraint){
   return false;
 }
 
+// Check if a give constrainst object exists in this schema
 bool Schema::ExistConstrain(Constraint constraint){
-
   oid_t total_column = GetColumnCount();
 
   for (oid_t column_itr = 0; column_itr < total_column; column_itr++) {
@@ -304,6 +302,7 @@ bool Schema::ExistConstrain(Constraint constraint){
   return false;
 }
 
+// Drop a constraint from this schema given its name
 oid_t Schema::DropConstraint(char const* conname){
   LOG_INFO("===DropConstraint===");
   oid_t total_column = GetColumnCount();

@@ -245,15 +245,13 @@ bool ForeignKey::IsTupleInSinkTable(storage::DataTable* sink_table, const storag
           concurrency::TransactionManagerFactory::GetInstance();
       // if visible key doesn't exist in the refered column
       bool visible_key_exist = false;
-      if (locations.size() > 0) {
-        for(unsigned long i = 0; i < locations.size(); i++) {
-          auto tile_group_header = catalog::Manager::GetInstance()
-              .GetTileGroup(locations[i].block)->GetHeader();
-          auto tuple_id = locations[i].offset;
-          if (transaction_manager.IsVisible(tile_group_header, tuple_id)) {
-            visible_key_exist = true;
-            break;
-          }
+      for(unsigned long i = 0; i < locations.size(); i++) {
+        auto tile_group_header = catalog::Manager::GetInstance()
+            .GetTileGroup(locations[i].block)->GetHeader();
+        auto tuple_id = locations[i].offset;
+        if (transaction_manager.IsVisible(tile_group_header, tuple_id)) {
+          visible_key_exist = true;
+          break;
         }
       }
 
@@ -361,7 +359,9 @@ bool ForeignKey::DeleteReferencingTupleOnCascading(executor::ExecutorContext *ex
   else {
     // If the returned value is false, it can still be valid
     // because it might simply because that the tuple to be deleted
-    // does not exist
+    // does not exist, so we check the txn result to see if this
+    // "res==false" results from txn failure or void deleted tuple.
+    // The later case should not return false.
     auto &transaction_manager =
         concurrency::TransactionManagerFactory::GetInstance();
     return transaction_manager.GeTransactionResult() == RESULT_SUCCESS;
@@ -475,7 +475,9 @@ bool ForeignKey::UpdateReferencingTupleOnCascading(executor::ExecutorContext *ex
   else {
     // If the returned value is false, it can still be valid
     // because it might simply because that the tuple to be updated
-    // does not exist
+    // does not exist. so we check the txn result to see if this
+    // "res==false" results from txn failure or void updated tuple.
+    // The later case should not return false.
     auto &transaction_manager =
         concurrency::TransactionManagerFactory::GetInstance();
     return transaction_manager.GeTransactionResult() == RESULT_SUCCESS;

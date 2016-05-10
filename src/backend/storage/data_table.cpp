@@ -135,7 +135,7 @@ bool DataTable::CheckConstraints(const storage::Tuple *tuple) const {
   return true;
 }
 
-
+// check the check constraint for a given tuple
 bool DataTable::CheckCheckConstraints(const storage::Tuple *tuple) const{
   Expr *qual;
 
@@ -720,6 +720,7 @@ index::Index *DataTable::GetIndex(const oid_t &index_offset) const {
   return index;
 }
 
+// Get the index id given its corresponding column offsets
 oid_t DataTable::GetIndexIdWithColumnOffsets(const std::vector<oid_t>& offsets) const {
   for (auto index : indexes_) {
     auto indexColumns = index->GetKeySchema()->GetIndexedColumns();
@@ -748,6 +749,7 @@ oid_t DataTable::GetIndexCount() const { return indexes_.size(); }
 // FOREIGN KEYS
 //===--------------------------------------------------------------------===//
 
+// Add a new check constraint predicate to this table
 void DataTable:: AddCheckPredicate(std::vector<char *> new_predicates){
 
   for(auto str:new_predicates){

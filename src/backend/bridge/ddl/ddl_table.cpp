@@ -220,8 +220,6 @@ bool DDLTable::CreateTableCheck(Oid relation_oid, std::string table_name,
       if (cdef->contype != CONSTR_CHECK)
         continue;
 
-//      expression::AbstractExpression *predicate =
-//          ExprTransformer::TransformExpr(reinterpret_cast<ExprState *>(cdef));
       check_predicates.push_back(cdef->cooked_expr);
     }
 

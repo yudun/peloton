@@ -32,19 +32,19 @@
 
 #define NOTNULL_TEST
 #define PRIMARY_UNIQUEKEY_TEST
-#define FOREIGHN_KEY_INSERT_TEST
+#define FOREIGN_KEY_INSERT_TEST
 
-#define FOREIGHN_KEY_RESTRICT_DELETE_TEST
-#define FOREIGHN_KEY_CASCADE_DELETE_TEST
-#define FOREIGHN_KEY_SETNULL_DELETE_TEST
-#define FOREIGHN_KEY_RESTRICT_UPDATE_TEST
-#define FOREIGHN_KEY_CASCADE_UPDATE_TEST
-#define FOREIGHN_KEY_SETNULL_UPDATE_TEST
+#define FOREIGN_KEY_RESTRICT_DELETE_TEST
+#define FOREIGN_KEY_CASCADE_DELETE_TEST
+#define FOREIGN_KEY_SETNULL_DELETE_TEST
+#define FOREIGN_KEY_RESTRICT_UPDATE_TEST
+#define FOREIGN_KEY_CASCADE_UPDATE_TEST
+#define FOREIGN_KEY_SETNULL_UPDATE_TEST
 #define DROPSETNOTNULL_TEST
 #define DROPUNIQUE_TEST
 #define SETUNIQUE_TEST
 
-#define FOREIGHN_KEY_DELETE_TEST
+#define FOREIGN_KEY_DELETE_TEST
 //#define CHECK_CONSTRAIN_TEST
 
 namespace peloton {
@@ -227,7 +227,7 @@ TEST_F(ConstraintsTests, MultiTransactionUniqueConstraintsTest) {
 }
 #endif
 
-#ifdef FOREIGHN_KEY_INSERT_TEST
+#ifdef FOREIGN_KEY_INSERT_TEST
 
 TEST_F(ConstraintsTests, ForeignKeyTest) {
 
@@ -281,7 +281,7 @@ TEST_F(ConstraintsTests, ForeignKeyTest) {
   }
 #endif
 
-#ifdef FOREIGHN_KEY_RESTRICT_DELETE_TEST
+#ifdef FOREIGN_KEY_RESTRICT_DELETE_TEST
   //     TABLE C -- src table          TABLE D -- sink table
   // int(primary)       int(ref B)       int(primary)  int
   //    0                 1               0             0
@@ -336,7 +336,7 @@ TEST_F(ConstraintsTests, ForeignKeyTest) {
   }
 #endif
 
-#ifdef FOREIGHN_KEY_CASCADE_DELETE_TEST
+#ifdef FOREIGN_KEY_CASCADE_DELETE_TEST
   //     TABLE E -- src table          TABLE F -- sink table
   // int(primary)       int(ref B)       int(primary)  int
   //    0                 1               0             0
@@ -404,7 +404,7 @@ TEST_F(ConstraintsTests, ForeignKeyTest) {
   }
 #endif
 
-#ifdef FOREIGHN_KEY_SETNULL_DELETE_TEST
+#ifdef FOREIGN_KEY_SETNULL_DELETE_TEST
   LOG_INFO("BEGIN FOREIGN KEY SETNULL_DELETE TEST-----------------------------------");
   //     TABLE G -- src table          TABLE H -- sink table
   // int(primary)   int(ref B)           int(primary)  int
@@ -473,7 +473,7 @@ TEST_F(ConstraintsTests, ForeignKeyTest) {
   }
 #endif
 
-#ifdef FOREIGHN_KEY_RESTRICT_UPDATE_TEST
+#ifdef FOREIGN_KEY_RESTRICT_UPDATE_TEST
   LOG_INFO("BEGIN FOREIGN KEY RESTRICT_UPDATE TEST-----------------------------------");
   //     TABLE I -- src table          TABLE J -- sink table
   // int(primary)   int(ref J v1)        int(primary)    int   int
@@ -571,7 +571,7 @@ TEST_F(ConstraintsTests, ForeignKeyTest) {
   }
 #endif
 
-#ifdef FOREIGHN_KEY_CASCADE_UPDATE_TEST
+#ifdef FOREIGN_KEY_CASCADE_UPDATE_TEST
   LOG_INFO("BEGIN FOREIGN KEY CASCADE_UPDATE TEST-----------------------------------");
   //     TABLE K -- src table          TABLE L -- sink table
   // int(primary)   int(ref L v1)        int(primary)    int   int
@@ -669,7 +669,7 @@ TEST_F(ConstraintsTests, ForeignKeyTest) {
   }
 #endif
 
-#ifdef FOREIGHN_KEY_SETNULL_UPDATE_TEST
+#ifdef FOREIGN_KEY_SETNULL_UPDATE_TEST
   LOG_INFO("BEGIN FOREIGN KEY KEY_SETNULL_UPDATE TEST-----------------------------------");
   //     TABLE M -- src table          TABLE N -- sink table
   // int(primary)   int(ref N v1)        int(primary)    int   int
