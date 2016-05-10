@@ -44,7 +44,6 @@ void GCManager::RefurbishTuple(TupleMetadata tuple_metadata) {
   auto &manager = catalog::Manager::GetInstance();
   auto tile_group_header =
       manager.GetTileGroup(tuple_metadata.tile_group_id)->GetHeader();
-
   // Set the values for the tuple slot such that when this
   // can be returned by ReturnFreeSlow and used as a new tuple slot
   // by the calling function
@@ -88,10 +87,9 @@ void GCManager::PerformGC() {
   // Check if we can move anything from the possibly free list to the free list.
   auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
   auto max_cid = txn_manager.GetMaxCommittedCid();
-  LOG_INFO("MAX %lu", max_cid);
   // if GC is not running, return without doing anything
   if (is_running_ == false) {
-	LOG_INFO("returning");
+    LOG_INFO("returning");
     return;
   }
   // every time we garbage collect at most max_tuples_per_gc tuples.
@@ -155,6 +153,7 @@ ItemPointer GCManager::ReturnFreeSlot(const oid_t &table_id) {
     TupleMetadata tuple_metadata;
     if (free_list.second->TryPop(tuple_metadata) == true) {
       free_list.first = free_list.first - 1;
+      free_map_[table_id] = free_list;
       return ItemPointer(tuple_metadata.tile_group_id,
                          tuple_metadata.tuple_slot_id);
     }
