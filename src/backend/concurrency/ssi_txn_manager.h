@@ -105,10 +105,6 @@ class SsiTxnManager : public TransactionManager {
     //    txn_id_a > txn_id_b --> begin_cid_a > begin_cid_b
     txn_id_t txn_id = GetNextTransactionId();
     cid_t begin_cid = GetNextCommitId();
-    oid_t epoch_id = GetNextEpochId();
-
-    current_epoch = new Epoch(epoch_id);
-    current_epoch->Join();
 
     Transaction *txn = new Transaction(txn_id, begin_cid);
     assert(txn_table_.find(txn->GetTransactionId()) == txn_table_.end());
